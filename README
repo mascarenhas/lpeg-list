@@ -1,0 +1,37 @@
+Support for matching lists with LPEG
+(http://www.inf.puc-rio.br/~roberto/lpeg), like OMeta does.
+
+Is working, but I consider it in alpha, I still have to think on how I
+want list matching to work exactly, and how its syntax should be for
+RE patterns.
+
+Examples:
+
+--------------------------
+require "re"
+
+p = re.compile([[ {- "add" ({.+}) ({.+}) -} -> add ]],
+       { add = function (x, y) 
+       	         return tonumber(x) + tonumber(y)
+	       end })
+
+assert(p:match{ "add", "2", "3" } == 5)
+assert(p:match{ "add", "72", "3" } == 75)
+assert(not p:match{ "sub", "72", "3" })
+
+p = re.compile[[ {- "foo" { "bar" (!"baz".)* "baz" } "boo" -} ]]
+
+m.print(p)
+
+assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[4] 
+   == "three")
+assert(#(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == 5)
+assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[5] 
+   == "baz")
+assert(p:match{ "foo", "bar", "baz", "boo" }[2] == "baz")
+assert(#(p:match{ "foo", "bar", "baz", "boo" }) == 2)
+---------------------------
+
+Use LuaRocks (http://luarocks.org) and the provided .rockspec file to
+compile and install. No docs yet, check the test suite list.lua for
+more examples.
