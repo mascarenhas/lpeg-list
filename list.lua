@@ -81,3 +81,16 @@ assert(p:match{ "add", "2", "3" } == 5)
 assert(p:match{ "add", "72", "3" } == 75)
 assert(not p:match{ "sub", "72", "3" })
 
+p = re.compile[[ {- "foo" { "bar" (!"baz".)* "baz" } "boo" -} ]]
+
+m.print(p)
+
+assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[4] == "three")
+assert(#(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == 5)
+assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[5] == "baz")
+assert(p:match{ "foo", "bar", "baz", "boo" }[2] == "baz")
+assert(#(p:match{ "foo", "bar", "baz", "boo" }) == 2)
+
+
+
+
