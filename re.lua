@@ -112,6 +112,20 @@ local exp = m.P{ "Exp",
                     )
             + "->" * S * ( m.Cg(String * m.Cc(mt.__div))
                          + m.P"{}" * m.Cc(nil, m.Ct)
+		         + m.Cmt("{" * S * name * S * ("," * S * name)^0 * S * "}",
+				 function(s, i, ...)
+				    local names = { ... }
+				    return i, nil, function (p)
+						      return mt.__div(m.Ct(p), 
+								      function (t1)
+									 local t2 = {}
+									 for i = 1, #names do
+									    t2[i] = t1[names[i]]
+									 end
+									 return t2
+								      end)
+						   end
+				 end)
                          + m.Cg(Identifier / getdef * m.Cc(mt.__div))
                          )
             + "=>" * S * m.Cg(Identifier / getdef * m.Cc(m.Cmt))
