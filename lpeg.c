@@ -238,7 +238,7 @@ static void printcapkind (int kind) {
     "close", "position", "constant", "backref",
     "argument", "simple", "table", "function",
     "query", "string", "substitution", "fold",
-    "runtime", "group"};
+    "runtime", "group", "slice" };
   printf("%s", modes[kind]);
 }
 
