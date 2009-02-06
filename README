@@ -5,6 +5,14 @@ Is working, but I consider it in alpha, I still have to think on how I
 want list matching to work exactly, and how its syntax should be for
 RE patterns.
 
+Simple captures in lists are working, the examples below show how they
+operate (produce a slice of the list, basically), but I haven't thought
+through on how to do substitution and dynamic matches (dynamic matches do
+work right now, after a fashion, but it looks like an ugly hack).
+
+Oh, and no verifier, but the compiler is generating correct code so this
+is not such a big deal. :-)
+
 It's backward compatible with LPEG 0.9, but this may change...
 
 Some examples (there's a simple expression compiler and evaluator at the end):
