@@ -109,3 +109,39 @@ assert(#(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == 3)
 assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[3] == "three")
 assert(#(p:match{ "foo", "bar", "baz", "boo" }) == 0)
 
+p = re.compile([[
+	       exp <- {{ "add", <exp>, <exp> }} -> add
+                    / {{ "sub", <exp>, <exp> }} -> sub
+		    / {{ "mul", <exp>, <exp> }} -> mul
+		    / {{ "div", <exp>, <exp> }} -> div
+		    / {.}
+    ]], { add = function (x, y) return x + y end, 
+          sub = function (x, y) return x - y end,
+          mul = function (x, y) return x * y end,
+          div = function (x, y) return x / y end, })
+
+assert(p:match{ "add", { "div", 8, 2 }, 3 } == 7)
+assert(p:match{ "sub", { "div", 8, { "add", 2, 2 } }, 3 } == -1)
+
+p = re.compile([[ exp <- {{ (.+ -> ops), <exp>, <exp> }} -> eval / {.} ]], 
+	       { ops = { add = function (x, y) return x + y end, 
+                         sub = function (x, y) return x - y end,
+                         mul = function (x, y) return x * y end,
+                         div = function (x, y) return x / y end, },
+                 eval = function (op, x, y) return op(x, y) end })
+
+assert(p:match{ "add", { "div", 8, 2 }, 3 } == 7)
+assert(p:match{ "sub", { "div", 8, { "add", 2, 2 } }, 3 } == -1)
+
+parser = re.compile([[
+  exp <- <add>
+  add <- (<mul> <aop> <add>) -> ast / <mul>
+  mul <- (<prim> <mop> <mul>) -> ast / <prim>
+  prim <- (%s "(" %s <exp> %s ")" %s) / (%s %num %s) -> tonumber
+  aop <- (%s "+" -> "add" %s) / (%s "-" -> "sub" %s)
+  mop <- (%s "*" -> "mul" %s) / (%s "/" -> "div" %s)
+]], { s = m.S(" \n\t")^0, num = m.C(lpeg.P"-"^-1 * lpeg.R("09")^1), tonumber = tonumber,
+      ast = function (op1, op, op2) return { op, op1, op2 } end })
+
+assert(p:match(parser:match("8/2+3")) == 7)
+assert(p:match(parser:match("8 / (2 + 2) - 3")) == -1)
