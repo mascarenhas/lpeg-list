@@ -418,7 +418,7 @@ static const char *match (lua_State *L,
         assert(stack == stackbase + 1);
         capture[captop].kind = Cclose;
         capture[captop].s = NULL;
-        return s;
+        return curitem < 0 ? "" : s;
       }
       case IGiveup: {
         assert(stack == stackbase);
@@ -2396,7 +2396,7 @@ static int matchl (lua_State *L) {
   if(lua_isstring(L, SUBJIDX))
     s = lua_tolstring(L, SUBJIDX, &l);
   else {
-    s = "";
+    s = NULL;
     l = 0;
   }
   int ptop = lua_gettop(L);
