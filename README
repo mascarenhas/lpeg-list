@@ -21,19 +21,19 @@ p = re.compile[[
      "three" }}
 ]]
 
-assert(p:match{ "one", "two", "three" }[1] == "two")
-assert(#(p:match{ "one", "two", "three" }) == 1)
-assert(#(p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" }, "three" }) == 3)
-assert(p:match{ "one", "two", { "foobarbarbar", "bar" }, { "baz", "boo" },
-		"three" }[2][1] == "foobarbarbar")
-assert(#(p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
-		  "three" }) == 3)
+assert(p:match{ "one", "two", "three" } == "two")
+assert(#{ p:match{ "one", "two", "three" } } == 1)
+assert(#{ p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" }, "three" }} == 3)
+local _, t = p:match{ "one", "two", { "foobarbarbar", "bar" }, { "baz", "boo" },
+		"three" }
+assert(t[1] == "foobarbarbar")
+assert(#{ p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
+		   "three" } } == 3)
 
 
 p = re.compile([[ {{ "add", ({.+}), ({.+}) }} -> add ]], { add = function (x, y)
 								    return x+y
 								 end })
-
 assert(p:match{ "add", 2, 3 })
 assert(p:match{ "add", 72, 3 } == 75)
 assert(p:match{ "add", 72.5, 3 } == 75.5)
@@ -42,17 +42,17 @@ assert(not p:match{ "add", 3 })
 
 p = re.compile[[ {{ "foo", { "bar", (!"baz" .+)*, "baz" }, "boo" }} ]]
 
-assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[4] == "three")
-assert(#(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == 5)
-assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[5] == "baz")
-assert(p:match{ "foo", "bar", "baz", "boo" }[2] == "baz")
-assert(#(p:match{ "foo", "bar", "baz", "boo" }) == 2)
+assert(select(4, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "three")
+assert(#{ p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" } } == 5)
+assert(select(5, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "baz")
+assert(select(2, p:match{ "foo", "bar", "baz", "boo" }) == "baz")
+assert(#{ p:match{ "foo", "bar", "baz", "boo" } } == 2)
 
 p = re.compile[[ {{ "foo", "bar", { (!"baz" .+)* }, "baz" , "boo" }} ]]
 
-assert(#(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == 3)
-assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[3] == "three")
-assert(#(p:match{ "foo", "bar", "baz", "boo" }) == 0)
+assert(#{ p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" } } == 3)
+assert(select(3, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "three")
+assert(#{ p:match{ "foo", "bar", "baz", "boo" } } == 0)
 
 p = re.compile([[
 	       exp <- {{ "add", <exp>, <exp> }} -> add

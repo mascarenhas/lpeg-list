@@ -41,6 +41,8 @@
 /* index, on Lua stack, for pattern's fenv */
 #define penvidx(ptop)	((ptop) + 3)
 
+/* index, on Lua stack, for table holding lists being traversed */
+#define plistidx(ptop)	((ptop) + 4)
 
 
 typedef unsigned char byte;
@@ -141,7 +143,7 @@ static const Instruction giveup = {{IGiveup, 0, 0}};
 /* kinds of captures */
 typedef enum CapKind {
   Cclose, Cposition, Cconst, Cbackref, Carg, Csimple, Ctable, Cfunction,
-  Cquery, Cstring, Csubst, Cfold, Cruntime, Cgroup, Citem
+  Cquery, Cstring, Csubst, Cfold, Cruntime, Cgroup, Cslice
 } CapKind;
 
 #define iscapnosize(k)	((k) == Cposition || (k) == Cconst)
@@ -397,10 +399,10 @@ static const char *match (lua_State *L,
   int curitem;
   const Instruction *p = op;
   if(lua_istable(L, SUBJIDX)) {
-    lua_pushvalue(L, LUA_REGISTRYINDEX);
-    listref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_pushvalue(L, plistidx(ptop));
+    listref = luaL_ref(L, plistidx(ptop));
     lua_pushvalue(L, SUBJIDX);
-    curitem = luaL_ref(L, LUA_REGISTRYINDEX);
+    curitem = luaL_ref(L, plistidx(ptop));
   } else {
     listref = LUA_REFNIL;
     curitem = 0;
@@ -436,7 +438,7 @@ static const char *match (lua_State *L,
 	  curitem = curitem < 0 ? curitem : -curitem;
 	  condfailed(p);
 	} else {
-	  lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
+	  lua_rawgeti(L, plistidx(ptop), listref);
 	  assert(lua_istable(L, -1));
 	  lua_rawgeti(L, -1, curitem);
 	  if(!lua_isnil(L, -1)) { lua_pop(L, 2); curitem = -curitem; p++; }
@@ -481,7 +483,7 @@ static const char *match (lua_State *L,
         continue;
       }
       case IListOpen: {
-	lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
+	lua_rawgeti(L, plistidx(ptop), listref);
 	assert(lua_istable(L, -1));
 	lua_rawgeti(L, -1, curitem);
 	if(!lua_istable(L, -1)) {
@@ -497,7 +499,7 @@ static const char *match (lua_State *L,
 	  stack->listref = listref;
 	  stack->curitem = curitem;
 	  stack++;
-	  listref = luaL_ref(L, LUA_REGISTRYINDEX);
+	  listref = luaL_ref(L, plistidx(ptop));
 	  curitem = 0;
 	  lua_pop(L, 1);
 	  p++;
@@ -508,10 +510,10 @@ static const char *match (lua_State *L,
 	if((s != NULL && s < e) || (s == NULL && curitem > 0)) {
 	  condfailed(p);
 	} else {
-	  lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
+	  lua_rawgeti(L, plistidx(ptop), listref);
 	  assert(lua_istable(L, -1) && stack > stackbase && (stack - 1)->p == NULL);
 	  lua_rawgeti(L, -1, curitem > 0 ? curitem + 1 : 1 - curitem);
-	  luaL_unref(L, LUA_REGISTRYINDEX, listref);
+	  luaL_unref(L, plistidx(ptop), listref);
 	  if(!lua_isnil(L, -1)) {
 	    lua_pop(L, 2);
 	    condfailed(p);
@@ -533,7 +535,7 @@ static const char *match (lua_State *L,
 	if((s!= NULL && s < e) || (s == NULL && curitem > 0)) {
 	  condfailed(p);
 	} else {
-	  lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
+	  lua_rawgeti(L, plistidx(ptop), listref);
 	  assert(lua_istable(L, -1));
 	  curitem = curitem > 0 ? curitem + 1 : 1 - curitem;
 	  lua_rawgeti(L, -1, curitem);
@@ -609,7 +611,7 @@ static const char *match (lua_State *L,
           assert(stack > stackbase);
 	  --stack;
 	  if(stack->p == NULL) {
-	    luaL_unref(L, LUA_REGISTRYINDEX, listref);
+	    luaL_unref(L, plistidx(ptop), listref);
 	    listref = stack->listref;
 	  }
         } while (stack->curitem == INT_MAX || stack->p == NULL);
@@ -651,7 +653,7 @@ static const char *match (lua_State *L,
       case ICloseCapture: {
         const char *s1 = s - getoff(p);
         assert(captop > 0);
-	if(capture[captop -1].kind == Citem)
+	if(capture[captop -1].kind == Cslice)
 	  capture[captop - 1].eitem = curitem > 0 ? curitem : -curitem;
         if (capture[captop - 1].siz == 0 &&
             s1 - capture[captop - 1].s < UCHAR_MAX) {
@@ -677,15 +679,13 @@ static const char *match (lua_State *L,
         capture[captop].idx = p->i.offset;
         capture[captop].kind = getkind(p);
 	capture[captop].listref = LUA_REFNIL;
-	if(capture[captop].kind == Citem) {
-	  lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
-	  capture[captop].listref = luaL_ref(L, LUA_REGISTRYINDEX);
-	  capture[captop].sitem = (curitem > 0 ? curitem : -curitem) + 1;
-	} else if(s == NULL) {
-	  capture[captop].s = NULL;
-	  lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
-	  capture[captop].listref = luaL_ref(L, LUA_REGISTRYINDEX);
-	  capture[captop].sitem = (curitem > 0 ? curitem : -curitem);
+	if(s == NULL || capture[captop].kind == Cslice) {
+	  lua_rawgeti(L, plistidx(ptop), listref);
+	  capture[captop].listref = luaL_ref(L, plistidx(ptop));
+	  if(capture[captop].kind == Cslice)
+	    capture[captop].sitem = (curitem > 0 ? curitem : -curitem) + 1;
+	  else
+	    capture[captop].sitem = (curitem > 0 ? curitem : -curitem);
 	}
         if (++captop >= capsize) {
           capture = doublecap(L, capture, captop, ptop);
@@ -701,8 +701,8 @@ static const char *match (lua_State *L,
       default: assert(0); return NULL;
     }
   }
-  luaL_unref(L, LUA_REGISTRYINDEX, curitem);
-  luaL_unref(L, LUA_REGISTRYINDEX, listref);
+  luaL_unref(L, plistidx(ptop), curitem);
+  luaL_unref(L, plistidx(ptop), listref);
 }
 
 /* }====================================================== */
@@ -1732,7 +1732,7 @@ static int capture_l (lua_State *L) {
   Instruction *p = getpatt(L, 1, &l);
   while((Opcode)p->i.code == IChoice) p++;
   if((Opcode)p->i.code == INext)
-    return capture_aux(L, Citem, 0); 
+    return capture_aux(L, Cslice, 0); 
   else
     return capture_aux(L, Csimple, 0); 
 }
@@ -1892,17 +1892,17 @@ typedef struct CapState {
 #define getfromenv(cs,v)	lua_rawgeti((cs)->L, penvidx((cs)->ptop), v)
 #define pushluaval(cs)		getfromenv(cs, (cs)->cap->idx)
 
-#define pushsubject(cs, c) { if((c)->s) lua_pushlstring((cs)->L, (c)->s, (c)->siz - 1); else pushitem((cs)->L, (c)); }
+#define pushsubject(cs, c) { if((c)->s) lua_pushlstring((cs)->L, (c)->s, (c)->siz - 1); else pushitem((cs), (c)); }
 
 
 #define updatecache(cs,v) { if ((v) != (cs)->valuecached) updatecache_(cs,v); }
 
 
-static void pushitem (lua_State *L, Capture *c) {
-  lua_rawgeti(L, LUA_REGISTRYINDEX, c->listref);
-  luaL_unref(L, LUA_REGISTRYINDEX, c->listref);
-  lua_rawgeti(L, -1, c->sitem);
-  lua_remove(L, -2);
+static void pushitem (CapState *cs, Capture *c) {
+  lua_rawgeti(cs->L, plistidx(cs->ptop), c->listref);
+  luaL_unref(cs->L, plistidx(cs->ptop), c->listref);
+  lua_rawgeti(cs->L, -1, c->sitem);
+  lua_remove(cs->L, -2);
 }
 
 static void updatecache_ (CapState *cs, int v) {
@@ -2229,26 +2229,26 @@ static int pushcapture (CapState *cs) {
       lua_pushvalue(cs->L, arg + FIXEDARGS);
       return 1;
     }
-    case Citem: {
-      int i;
-      lua_State *L = cs->L;
-      int listref = cs->cap->listref;
-      int sitem = cs->cap->sitem;
-      int eitem = cs->cap->eitem;
-      lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
-      luaL_unref(L, LUA_REGISTRYINDEX, listref);
-      lua_createtable(L, eitem-sitem+1, 0);
-      for(i = 1; sitem <= eitem; i++, sitem++) {
-	lua_rawgeti(L, -2, sitem);
-	lua_rawseti(L, -2, i);
+    case Cslice: {
+      int listref = lua_gettop(cs->L) + 1;
+      int n = cs->cap->eitem - cs->cap->sitem + 1;
+      if(n == 0) {
+	lua_pushnil(cs->L);
+	n = 1;
+      } else {
+	lua_rawgeti(cs->L, plistidx(cs->ptop), cs->cap->listref);
+	for(; cs->cap->sitem <= cs->cap->eitem; cs->cap->sitem++) {
+	  lua_rawgeti(cs->L, listref, cs->cap->sitem);
+	}
+	lua_remove(cs->L, listref);
       }
-      lua_remove(L, -2);
+      luaL_unref(cs->L, plistidx(cs->ptop), cs->cap->listref);
       cs->cap++;
-      return 1;
+      return n;
     }
     case Csimple: {
       if(cs->cap->listref != LUA_REFNIL) {
-	pushitem(cs->L, cs->cap);
+	pushitem(cs, cs->cap);
 	cs->cap++;
 	return 1;
       } else {
@@ -2407,6 +2407,7 @@ static int matchl (lua_State *L) {
   lua_pushnil(L);  /* subscache */
   lua_pushlightuserdata(L, capture);  /* caplistidx */
   lua_getfenv(L, 1);  /* penvidx */
+  lua_createtable(L, 0, 0); /* lists */
   r = match(L, s, s + i, s + l, p, capture, ptop);
   if (r == NULL) {
     lua_pushnil(L);
