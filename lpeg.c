@@ -434,13 +434,13 @@ static const char *match (lua_State *L,
         continue;
       }
       case IChar: {
-        if ((byte)*s == p->i.aux && s < e) { p++; s++; }
+        if (s < e && (byte)*s == p->i.aux) { p++; s++; }
         else condfailed(p);
         continue;
       }
       case ISet: {
         int c = (byte)*s;
-        if (testchar((p+1)->buff, c) && s < e)
+        if (s < e && testchar((p+1)->buff, c))
           { p += CHARSETINSTSIZE; s++; }
         else condfailed(p);
         continue;
@@ -519,6 +519,9 @@ static const char *match (lua_State *L,
 	  o = (s = lua_tolstring(L, -1, &size));
 	  lua_pop(L, 2);
 	  e = o + size;
+	} else {
+	  lua_pop(L, 2);
+	  s = (o = (e = NULL));
 	}
 	p++;
 	continue;
@@ -539,18 +542,19 @@ static const char *match (lua_State *L,
           return (luaL_error(L, "too many pending calls/choices"), (char *)0);
         stack->s = NULL;
         stack->p = p + 1;  /* save return address */
+	stack->curitem = -1;
         stack++;
         p += p->i.offset;
         continue;
       }
       case ICommit: {
-        assert(stack > stackbase && (stack - 1)->s != NULL);
+        assert(stack > stackbase);
         stack--;
         p += p->i.offset;
         continue;
       }
       case IPartialCommit: {
-        assert(stack > stackbase && (stack - 1)->s != NULL);
+        assert(stack > stackbase);
         (stack - 1)->s = s;
         (stack - 1)->caplevel = captop;
 	(stack - 1)->curitem = curitem;
@@ -558,7 +562,7 @@ static const char *match (lua_State *L,
         continue;
       }
       case IBackCommit: {
-        assert(stack > stackbase && (stack - 1)->s != NULL);
+        assert(stack > stackbase);
         s = (--stack)->s;
 	curitem = stack->curitem;
         p += p->i.offset;
@@ -581,9 +585,9 @@ static const char *match (lua_State *L,
 	    curitem = stack->curitem;
 	    continue;
 	  }
+	  curitem = stack->curitem;
           s = stack->s;
-        } while (s == NULL || stack->p == NULL);
-	curitem = stack->curitem;
+        } while (curitem == -1 || stack->p == NULL);
         captop = stack->caplevel;
         p = stack->p;
         continue;
@@ -1692,6 +1696,7 @@ static int capture_aux (lua_State *L, int kind, int labelidx) {
 static int capture_l (lua_State *L) { 
   int l;
   Instruction *p = getpatt(L, 1, &l);
+  while((Opcode)p->i.code == IChoice) p++;
   if((Opcode)p->i.code == INext)
     return capture_aux(L, Citem, 0); 
   else

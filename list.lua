@@ -55,13 +55,13 @@ assert(#(p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
 
 re = require "re"
 
-p = re.compile[[ {- "one" {"two"} "three" -} ]]
+p = re.compile[[ {{ "one", {"two"}, "three" }} ]]
 
 assert(p:match{ "one" , "two" ,"three" })
 
 p = re.compile[[
-    {- "one" { "two" ({- ("foo""bar"*) "bar" -} / {- "baz" "boo" -})* }
-     "three" -}
+    {{ "one", { "two", ({{ ("foo""bar"*), "bar" }} / {{ "baz", "boo" }})* },
+     "three" }}
 ]]
 
 assert(p:match{ "one", "two", "three" }[1] == "two")
@@ -73,7 +73,7 @@ assert(#(p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
 		  "three" }) == 3)
 
 
-p = re.compile([[ {- "add" ({.+}) ({.+}) -} -> add ]], { add = function (x, y) 
+p = re.compile([[ {{ "add", ({.+}), ({.+}) }} -> add ]], { add = function (x, y) 
 								 return tonumber(x) + tonumber(y)
 							       end })
 
@@ -81,7 +81,7 @@ assert(p:match{ "add", "2", "3" } == 5)
 assert(p:match{ "add", "72", "3" } == 75)
 assert(not p:match{ "sub", "72", "3" })
 
-p = re.compile[[ {- "foo" { "bar" (!"baz".)* "baz" } "boo" -} ]]
+p = re.compile[[ {{ "foo", { "bar", (!"baz".)*, "baz" }, "boo" }} ]]
 
 assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[4] == "three")
 assert(#(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == 5)
@@ -89,6 +89,9 @@ assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[5] == "baz")
 assert(p:match{ "foo", "bar", "baz", "boo" }[2] == "baz")
 assert(#(p:match{ "foo", "bar", "baz", "boo" }) == 2)
 
+p = re.compile[[ {{ "foo", "bar", { (!"baz".)* }, "baz" , "boo" }} ]]
 
-
+assert(#(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == 3)
+assert(p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }[3] == "three")
+assert(#(p:match{ "foo", "bar", "baz", "boo" }) == 0)
 
