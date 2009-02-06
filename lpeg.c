@@ -503,42 +503,48 @@ static const char *match (lua_State *L,
 	continue;
       }
       case IListClose: {
-	lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
-	assert(lua_istable(L, -1) && stack > stackbase && (stack - 1)->p == NULL);
-	curitem++;  /* next value */
-	lua_rawgeti(L, -1, curitem);
-	luaL_unref(L, LUA_REGISTRYINDEX, listref);
-	if(!lua_isnil(L, -1)) {
-	  lua_pop(L, 2);
+	if((s != NULL && s < e) || (s == NULL && curitem > 0)) {
 	  condfailed(p);
 	} else {
-	  lua_pop(L, 2);
-	  --stack;
-	  s = stack->s;
-	  o = stack->o;
-	  e = stack->e;
-	  listref = stack->listref;
-	  curitem = stack->curitem;
-	  p++;
+	  lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
+	  assert(lua_istable(L, -1) && stack > stackbase && (stack - 1)->p == NULL);
+	  lua_rawgeti(L, -1, curitem > 0 ? curitem + 1 : 1 - curitem);
+	  luaL_unref(L, LUA_REGISTRYINDEX, listref);
+	  if(!lua_isnil(L, -1)) {
+	    lua_pop(L, 2);
+	    condfailed(p);
+	  } else {
+	    lua_pop(L, 2);
+	    --stack;
+	    s = stack->s;
+	    o = stack->o;
+	    e = stack->e;
+	    listref = stack->listref;
+	    curitem = -stack->curitem;
+	    p++;
+	  }
 	}
 	continue;
       }
       case INext: {
 	size_t size;
-	lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
-	assert(lua_istable(L, -1));
-	curitem = curitem > 0 ? curitem : -curitem;
-	curitem++;  /* next value */
-	lua_rawgeti(L, -1, curitem);
-	if(lua_type(L, -1) == LUA_TSTRING) {
-	  o = (s = lua_tolstring(L, -1, &size));
-	  lua_pop(L, 2);
-	  e = o + size;
+	if((s!= NULL && s < e) || (s == NULL && curitem > 0)) {
+	  condfailed(p);
 	} else {
-	  lua_pop(L, 2);
-	  s = (o = (e = NULL));
+	  lua_rawgeti(L, LUA_REGISTRYINDEX, listref);
+	  assert(lua_istable(L, -1));
+	  curitem = curitem > 0 ? curitem + 1 : 1 - curitem;
+	  lua_rawgeti(L, -1, curitem);
+	  if(lua_type(L, -1) == LUA_TSTRING) {
+	    o = (s = lua_tolstring(L, -1, &size));
+	    lua_pop(L, 2);
+	    e = o + size;
+	  } else {
+	    lua_pop(L, 2);
+	    s = (o = (e = NULL));
+	  }
+	  p++;
 	}
-	p++;
 	continue;
       }
       case IChoice: {
@@ -546,7 +552,9 @@ static const char *match (lua_State *L,
           return (luaL_error(L, "too many pending calls/choices"), (char *)0);
         stack->p = dest(0, p);
         stack->s = s - p->i.aux;
+	stack->o = o; stack->e = e;
         stack->caplevel = captop;
+	stack->listref = listref;
 	stack->curitem = curitem;
         stack++;
         p++;
@@ -571,7 +579,10 @@ static const char *match (lua_State *L,
       case IPartialCommit: {
         assert(stack > stackbase);
         (stack - 1)->s = s;
+        (stack - 1)->o = o;
+        (stack - 1)->e = e;
         (stack - 1)->caplevel = captop;
+	(stack - 1)->listref = listref;
 	(stack - 1)->curitem = curitem;
         p += p->i.offset;
         continue;
@@ -579,6 +590,9 @@ static const char *match (lua_State *L,
       case IBackCommit: {
         assert(stack > stackbase);
         s = (--stack)->s;
+        o = stack->o;
+        e = stack->e;
+	listref = stack->listref;
 	curitem = stack->curitem;
         p += p->i.offset;
         continue;
@@ -591,19 +605,16 @@ static const char *match (lua_State *L,
       fail: { /* pattern failed: try to backtrack */
         do {  /* remove pending calls/lists */
           assert(stack > stackbase);
-	  if((--stack)->p == NULL) {
-	    s = stack->s;
-	    o = stack->o;
-	    e = stack->e;
+	  --stack;
+	  if(stack->p == NULL) {
 	    luaL_unref(L, LUA_REGISTRYINDEX, listref);
 	    listref = stack->listref;
-	    curitem = stack->curitem;
-	    continue;
 	  }
-	  curitem = stack->curitem;
-          s = stack->s;
-        } while (curitem == INT_MAX || stack->p == NULL);
-        captop = stack->caplevel;
+        } while (stack->curitem == INT_MAX || stack->p == NULL);
+	s = stack->s; o = stack->o; e = stack->e;
+	listref = stack->listref;
+	curitem = stack->curitem;
+	captop = stack->caplevel;
         p = stack->p;
         continue;
       }
