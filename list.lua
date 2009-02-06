@@ -73,13 +73,12 @@ assert(#(p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
 		  "three" }) == 3)
 
 
-p = re.compile([[ {{ "add", ({.+}), ({.+}) }} -> add ]], { add = function (x, y) 
-								 return tonumber(x) + tonumber(y)
+p = re.compile([[ {{ "add", ({.}), ({.}) }} -> add ]], { add = function (x, y) 
+								 return x+y
 							       end })
-
-assert(p:match{ "add", "2", "3" } == 5)
-assert(p:match{ "add", "72", "3" } == 75)
-assert(not p:match{ "sub", "72", "3" })
+assert(p:match{ "add", 2, 3 } == 5)
+assert(p:match{ "add", 72, 3 } == 75)
+assert(not p:match{ "sub", 72, 3 })
 
 p = re.compile[[ {{ "foo", { "bar", (!"baz".)*, "baz" }, "boo" }} ]]
 
