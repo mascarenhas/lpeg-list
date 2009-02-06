@@ -10,6 +10,9 @@ p = m.L(m.I"one" * m.I"two" * (m.I(m.L(m.I"foo" * m.I"bar")) +
 assert(p:match{ "one", "two", { "foo", "bar" }, "three" })
 assert(p:match{ "one", "two", { "baz", "boo" }, "three" })
 assert(not p:match{ "one", "two", { "baz", "bar" }, "three" })
+assert(not p:match{ "one", "tw", { "foo", "bar" }, "three" })
+assert(not p:match{ "one", "two", { "baz", "boo" } })
+assert(not p:match{ "one", "two", { "baz", "boo" }, "thr" })
 
 p = m.L(m.I"one" * m.I"two"^1 * m.I"three")
 
@@ -17,6 +20,15 @@ assert(p:match{ "one", "two", "three" })
 assert(not p:match{ "one", "three" })
 assert(p:match{ "one", "two", "two", "three" })
 assert(p:match{ "one", "two", "two", "two", "three" })
+
+p = m.L(m.I"one" * m.I"two"^1 * m.I("thr" * m.P("e")^1))
+
+assert(p:match{ "one", "two", "three" })
+assert(not p:match{ "one", "three" })
+assert(p:match{ "one", "two", "two", "three" })
+assert(p:match{ "one", "two", "two", "two", "three" })
+assert(p:match{ "one", "two", "threeeee" })
+assert(not p:match{ "one", "two", "thr" })
 
 p = m.L(m.I"one" * lpeg.C(lpeg.I"two") * (m.I(m.L(m.I"foo" * m.I"bar")) +
 			     m.I(m.L(m.I"baz" * m.I"boo")))^0 * m.I"three")
@@ -73,14 +85,15 @@ assert(#(p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
 		  "three" }) == 3)
 
 
-p = re.compile([[ {{ "add", ({.}), ({.}) }} -> add ]], { add = function (x, y) 
-								 return x+y
-							       end })
+p = re.compile([[ {{ "add", ({.+}), ({.+}) }} -> add ]], { add = function (x, y)
+								    return x+y
+								 end })
 
-assert(p:match{ "add", 2, 3 } == 5)
+assert(p:match{ "add", 2, 3 })
 assert(p:match{ "add", 72, 3 } == 75)
 assert(p:match{ "add", 72.5, 3 } == 75.5)
 assert(not p:match{ "sub", 72, 3 })
+assert(not p:match{ "add", 3 })
 
 p = re.compile[[ {{ "foo", { "bar", (!"baz" .+)*, "baz" }, "boo" }} ]]
 

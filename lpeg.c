@@ -457,8 +457,10 @@ static const char *match (lua_State *L,
         continue;
       }
       case ISpan: {
-	if(s == NULL && curitem < 0) { condfailed(p); }
-	else {
+	if(s == NULL) { 
+	  if(curitem > 0) curitem = -curitem;
+	  p += CHARSETINSTSIZE;
+	} else {
 	  for (; s < e; s++) {
 	    int c = (byte)*s;
 	    if (!testchar((p+1)->buff, c)) break;
@@ -2246,10 +2248,7 @@ static int pushcapture (CapState *cs) {
     }
     case Csimple: {
       if(cs->cap->listref != LUA_REFNIL) {
-	lua_rawgeti(cs->L, LUA_REGISTRYINDEX, cs->cap->listref);
-	luaL_unref(cs->L, LUA_REGISTRYINDEX, cs->cap->listref);
-	lua_rawgeti(cs->L, -1, cs->cap->sitem);
-	lua_remove(cs->L, -2);
+	pushitem(cs->L, cs->cap);
 	cs->cap++;
 	return 1;
       } else {
