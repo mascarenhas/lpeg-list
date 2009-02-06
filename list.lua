@@ -4,6 +4,8 @@ p = m.L(m.I"one" * m.I"two" * m.I(m.L(m.I"foo" * m.I"bar")) * m.I"three")
 
 assert(p:match{ "one", "two", { "foo", "bar" }, "three" })
 
+print("+")
+
 p = m.L(m.I"one" * m.I"two" * (m.I(m.L(m.I"foo" * m.I"bar")) +
 			     m.I(m.L(m.I"baz" * m.I"boo"))) * m.I"three")
 
@@ -14,12 +16,16 @@ assert(not p:match{ "one", "tw", { "foo", "bar" }, "three" })
 assert(not p:match{ "one", "two", { "baz", "boo" } })
 assert(not p:match{ "one", "two", { "baz", "boo" }, "thr" })
 
+print("+")
+
 p = m.L(m.I"one" * m.I"two"^1 * m.I"three")
 
 assert(p:match{ "one", "two", "three" })
 assert(not p:match{ "one", "three" })
 assert(p:match{ "one", "two", "two", "three" })
 assert(p:match{ "one", "two", "two", "two", "three" })
+
+print("+")
 
 p = m.L(m.I"one" * m.I"two"^1 * m.I("thr" * m.P("e")^1))
 
@@ -30,6 +36,8 @@ assert(p:match{ "one", "two", "two", "two", "three" })
 assert(p:match{ "one", "two", "threeeee" })
 assert(not p:match{ "one", "two", "thr" })
 
+print("+")
+
 p = m.L(m.I"one" * lpeg.C(lpeg.I"two") * (m.I(m.L(m.I"foo" * m.I"bar")) +
 			     m.I(m.L(m.I"baz" * m.I"boo")))^0 * m.I"three")
 assert(p:match{ "one", "two", "three" } == "two")
@@ -38,6 +46,8 @@ assert(p:match{ "one", "two", { "foo", "bar" }, "three" })
 assert(p:match{ "one", "two", { "baz", "boo" }, "three" })
 assert(not p:match{ "one", "two", { "baz", "bar" }, "three" })
 assert(p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" }, "three" })
+
+print("+")
 
 p = m.L(m.I"one" * lpeg.C(lpeg.I"two" * (m.I(m.L(m.I"foo" * m.I"bar")) +
 				       m.I(m.L(m.I"baz" * m.I"boo")))^0)
@@ -49,6 +59,8 @@ assert(#{ p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" },
 		   "three" } } == 3)
 assert(({ p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" },
 		   "three" } })[3][1] == "baz")
+
+print("+")
 
 p = m.L(m.I"one" * lpeg.C(lpeg.I"two" * (m.I(m.L(m.I("foo" * lpeg.P("bar")^0) * 
 					       m.I"bar")) +
@@ -65,11 +77,15 @@ assert(t[1] == "foobarbarbar")
 assert(#{ p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
 		   "three" } } == 3)
 
+print("+")
+
 re = require "re"
 
 p = re.compile[[ {{ "one", {"two"}, "three" }} ]]
 
 assert(p:match{ "one" , "two" ,"three" })
+
+print("+")
 
 p = re.compile[[
     {{ "one", { "two", ({{ ("foo""bar"*), "bar" }} / {{ "baz", "boo" }})* },
@@ -85,6 +101,7 @@ assert(t[1] == "foobarbarbar")
 assert(#{ p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
 		   "three" } } == 3)
 
+print("+")
 
 p = re.compile([[ {{ "add", ({.+}), ({.+}) }} -> add ]], { add = function (x, y)
 								    return x+y
@@ -95,6 +112,8 @@ assert(p:match{ "add", 72.5, 3 } == 75.5)
 assert(not p:match{ "sub", 72, 3 })
 assert(not p:match{ "add", 3 })
 
+print("+")
+
 p = re.compile[[ {{ "foo", { "bar", (!"baz" .+)*, "baz" }, "boo" }} ]]
 
 assert(select(4, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "three")
@@ -103,11 +122,15 @@ assert(select(5, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) =
 assert(select(2, p:match{ "foo", "bar", "baz", "boo" }) == "baz")
 assert(#{ p:match{ "foo", "bar", "baz", "boo" } } == 2)
 
+print("+")
+
 p = re.compile[[ {{ "foo", "bar", { (!"baz" .+)* }, "baz" , "boo" }} ]]
 
 assert(#{ p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" } } == 3)
 assert(select(3, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "three")
 assert(#{ p:match{ "foo", "bar", "baz", "boo" } } == 0)
+
+print("+")
 
 p = re.compile([[
 	       exp <- {{ "add", <exp>, <exp> }} -> add
@@ -123,6 +146,8 @@ p = re.compile([[
 assert(p:match{ "add", { "div", 8, 2 }, 3 } == 7)
 assert(p:match{ "sub", { "div", 8, { "add", 2, 2 } }, 3 } == -1)
 
+print("+")
+
 p = re.compile([[ exp <- {{ (.+ -> ops), <exp>, <exp> }} -> eval / {.} ]], 
 	       { ops = { add = function (x, y) return x + y end, 
                          sub = function (x, y) return x - y end,
@@ -132,6 +157,8 @@ p = re.compile([[ exp <- {{ (.+ -> ops), <exp>, <exp> }} -> eval / {.} ]],
 
 assert(p:match{ "add", { "div", 8, 2 }, 3 } == 7)
 assert(p:match{ "sub", { "div", 8, { "add", 2, 2 } }, 3 } == -1)
+
+print("+")
 
 parser = re.compile([[
   exp <- <add>
@@ -145,3 +172,7 @@ parser = re.compile([[
 
 assert(p:match(parser:match("8/2+3")) == 7)
 assert(p:match(parser:match("8 / (2 + 2) - 3")) == -1)
+
+print("+")
+
+print("OK")
