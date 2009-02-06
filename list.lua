@@ -148,23 +148,24 @@ assert(p:match{ "sub", { "div", 8, { "add", 2, 2 } }, 3 } == -1)
 
 print("+")
 
-p = re.compile([[ exp <- {{ (.+ -> ops), <exp>, <exp> }} -> eval / {.} ]], 
+p = re.compile([[ exp <- {{ (.+ -> ops), <exp>, <exp> }} -> eval / {{ "num", {.} }} ]], 
 	       { ops = { add = function (x, y) return x + y end, 
                          sub = function (x, y) return x - y end,
                          mul = function (x, y) return x * y end,
                          div = function (x, y) return x / y end, },
                  eval = function (op, x, y) return op(x, y) end })
 
-assert(p:match{ "add", { "div", 8, 2 }, 3 } == 7)
-assert(p:match{ "sub", { "div", 8, { "add", 2, 2 } }, 3 } == -1)
+assert(p:match{ "add", { "div", { "num", 8 }, { "num", 2 } }, { "num", 3 }} == 7)
+assert(p:match{ "sub", { "div", { "num", 8 }, { "add", { "num", 2 }, { "num", 2 } } }, 
+		{ "num", 3  } } == -1)
 
 print("+")
 
 parser = re.compile([[
   exp <- <add>
-  add <- ({:x:<mul>:} {:op:<aop>:} {:y:<add>:}) -> { op, x, y } / <mul>
-  mul <- ({:x:<prim>:} {:op:<mop>:} {:y:<mul>:}) -> { op, x, y } / <prim>
-  prim <- (%s "(" %s <exp> %s ")" %s) / (%s %num %s) -> tonumber
+  add <- (<mul>:x <aop>:op <add>:y) -> { op, x, y } / <mul>
+  mul <- (<prim>:x <mop>:op <mul>:y) -> { op, x, y } / <prim>
+  prim <- (%s "(" %s <exp> %s ")" %s) / (%s %num -> tonumber %s):n -> { "num", n }
   aop <- (%s "+" -> "add" %s) / (%s "-" -> "sub" %s)
   mop <- (%s "*" -> "mul" %s) / (%s "/" -> "div" %s)
 ]], { s = m.S(" \n\t")^0, num = m.C(lpeg.P"-"^-1 * lpeg.R("09")^1), tonumber = tonumber })

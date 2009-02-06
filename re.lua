@@ -112,7 +112,8 @@ local exp = m.P{ "Exp",
                     )
             + "->" * S * ( m.Cg(String * m.Cc(mt.__div))
                          + m.P"{}" * m.Cc(nil, m.Ct)
-		         + m.Cmt("{" * S * name * S * ("," * S * name)^0 * S * "}",
+		      + m.Cmt("{" * S * (String + m.Ct(name)) * S * (
+				 "," * S * (String + m.Ct(name)))^0 * S * "}",
 				 function(s, i, ...)
 				    local names = { ... }
 				    return i, nil, function (p)
@@ -120,7 +121,13 @@ local exp = m.P{ "Exp",
 								      function (t1)
 									 local t2 = {}
 									 for i = 1, #names do
-									    t2[i] = t1[names[i]]
+									    if type(names[i]) ==
+									        "string" then
+									       t2[i] = names[i]
+									    else
+									       t2[i] = 
+										  t1[names[i][1]]
+									    end
 									 end
 									 return t2
 								      end)
@@ -146,7 +153,8 @@ local exp = m.P{ "Exp",
   TableItem = m.V"TableCap" + ("(" * S * m.V"Prefix"/m.I * ")" * S) + m.V"TablePrefix";
   TableSlice = m.Cf(m.V"TableItem" * ("," * S * m.V"TableItem")^0, mt.__mul);
   TableCap = "{" * S * m.V"TableSlice" * "}" * S / m.C;
-  Primary = "(" * m.V"Exp" * ")"
+  Primary = "(" * m.V"Exp" * "):" * name / function (p, name) return m.Cg(p, name) end
+            + "(" * m.V"Exp" * ")"
             + String / m.P
             + Class
             + Cat
@@ -158,6 +166,7 @@ local exp = m.P{ "Exp",
             + "{~" * m.V"Exp" * "~}" / m.Cs
             + "{" * m.V"Exp" * "}" / m.C
             + m.P"." * m.Cc(any)
+  	    + "<" * name * ">:" * name / function(def, name) return m.Cg(m.V(def), name) end
             + "<" * name * ">" / m.V;
   Definition = Identifier * S * '<-' * m.V"Exp";
   Grammar = m.Cf(m.V"Definition" / firstdef * m.Cg(m.V"Definition")^0, adddef) /
