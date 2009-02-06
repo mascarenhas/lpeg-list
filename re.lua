@@ -55,7 +55,6 @@ local exp_follow = m.P"/" + ")" + "}" + ":}" + "~}" + name + -1
 
 name = m.C(name)
 
-
 -- identifiers only have meaning in a given environment
 local Identifier = name * m.Carg(1)
 
@@ -64,6 +63,7 @@ local num = m.C(m.R"09"^1) * S / tonumber
 local String = "'" * m.C((any - "'")^0) * "'" +
                '"' * m.C((any - '"')^0) * '"'
 
+local Token = S * "`" * m.C(any - m.S(" `\t\n")) * S
 
 local Cat = "%" * Identifier / function (c,Defs)
   local cat =  Defs and Defs[c] or Predef[c]
@@ -156,6 +156,7 @@ local exp = m.P{ "Exp",
   Primary = "(" * m.V"Exp" * "):" * name / function (p, name) return m.Cg(p, name) end
             + "(" * m.V"Exp" * ")"
             + String / m.P
+            + Token / function (s) return S * s * S end
             + Class
             + Cat
             + "{:" * (name * ":" + m.Cc(nil)) * m.V"Exp" * ":}" /

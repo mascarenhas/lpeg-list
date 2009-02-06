@@ -91,10 +91,10 @@ parser = re.compile([[
   exp <- <add>
   add <- (<mul>:x <aop>:op <add>:y) -> { op, x, y } / <mul>
   mul <- (<prim>:x <mop>:op <mul>:y) -> { op, x, y } / <prim>
-  prim <- (%s "(" %s <exp> %s ")" %s) / (%s %num -> tonumber %s):n -> { "num", n }
-  aop <- (%s "+" -> "add" %s) / (%s "-" -> "sub" %s)
-  mop <- (%s "*" -> "mul" %s) / (%s "/" -> "div" %s)
-]], { s = m.S(" \n\t")^0, num = m.C(lpeg.P"-"^-1 * lpeg.R("09")^1), tonumber = tonumber })
+  prim <- ( `( <exp> `) ) / (%num):n -> { "num", n }
+  aop <- (`+ -> "add") / (`- -> "sub")
+  mop <- (`* -> "mul") / (`/ -> "div")
+]], { num = S * (m.C(lpeg.P"-"^-1 * lpeg.R("09")^1) / tonumber) * S })
 
 assert(p:match(parser:match("8/2+3")) == 7)
 assert(p:match(parser:match("8 / (2 + 2) - 3")) == -1)
