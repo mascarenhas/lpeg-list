@@ -653,7 +653,7 @@ static const char *match (lua_State *L,
       case ICloseCapture: {
         const char *s1 = s - getoff(p);
         assert(captop > 0);
-	if(capture[captop -1].kind == Cslice)
+	if(capture[captop - 1].kind == Cslice)
 	  capture[captop - 1].eitem = curitem > 0 ? curitem : -curitem;
         if (capture[captop - 1].siz == 0 &&
             s1 - capture[captop - 1].s < UCHAR_MAX) {
@@ -1945,7 +1945,11 @@ static int pushallvalues (CapState *cs, int addextra) {
   Capture *co = cs->cap;
   int n = 0;
   if (isfullcap(cs->cap++)) {
-    pushsubject(cs, co);  /* push whole match */
+    if(co->listref == LUA_REFNIL) {
+      pushsubject(cs, co);  /* push whole match */
+    } else {
+      pushitem(cs, co);
+    }
     return 1;
   }
   while (!isclosecap(cs->cap))
@@ -2230,21 +2234,18 @@ static int pushcapture (CapState *cs) {
       return 1;
     }
     case Cslice: {
+      int i;
       int listref = lua_gettop(cs->L) + 1;
-      int n = cs->cap->eitem - cs->cap->sitem + 1;
-      if(n == 0) {
-	lua_pushnil(cs->L);
-	n = 1;
-      } else {
-	lua_rawgeti(cs->L, plistidx(cs->ptop), cs->cap->listref);
-	for(; cs->cap->sitem <= cs->cap->eitem; cs->cap->sitem++) {
-	  lua_rawgeti(cs->L, listref, cs->cap->sitem);
-	}
-	lua_remove(cs->L, listref);
+      lua_rawgeti(cs->L, plistidx(cs->ptop), cs->cap->listref);
+      lua_createtable(cs->L, cs->cap->eitem - cs->cap->sitem + 1, 0);
+      for(i = 1; cs->cap->sitem <= cs->cap->eitem; i++, cs->cap->sitem++) {
+	lua_rawgeti(cs->L, listref, cs->cap->sitem);
+	lua_rawseti(cs->L, -2, i);
       }
+      lua_remove(cs->L, listref);
       luaL_unref(cs->L, plistidx(cs->ptop), cs->cap->listref);
       cs->cap++;
-      return n;
+      return 1;
     }
     case Csimple: {
       if(cs->cap->listref != LUA_REFNIL) {

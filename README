@@ -15,7 +15,8 @@ is not such a big deal. :-)
 
 It's backward compatible with LPEG 0.9, but this may change...
 
-Some examples (there's a simple expression compiler and evaluator at the end):
+Some examples (there's a simple expression compiler and evaluator at the end;
+list.lua has a lot more, including some tree processing on a simplified HTML):
 
 --------------------------
 re = require "re"
@@ -24,20 +25,23 @@ p = re.compile[[ {{ "one", {"two"}, "three" }} ]]
 
 assert(p:match{ "one" , "two" ,"three" })
 
+print("+")
+
 p = re.compile[[
     {{ "one", { "two", ({{ ("foo""bar"*), "bar" }} / {{ "baz", "boo" }})* },
      "three" }}
 ]]
 
-assert(p:match{ "one", "two", "three" } == "two")
-assert(#{ p:match{ "one", "two", "three" } } == 1)
-assert(#{ p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" }, "three" }} == 3)
-local _, t = p:match{ "one", "two", { "foobarbarbar", "bar" }, { "baz", "boo" },
+assert(p:match{ "one", "two", "three" }[1] == "two")
+assert(#p:match{ "one", "two", "three" } == 1)
+assert(#p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" }, "three" } == 3)
+local t = p:match{ "one", "two", { "foobarbarbar", "bar" }, { "baz", "boo" },
 		"three" }
-assert(t[1] == "foobarbarbar")
-assert(#{ p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
-		   "three" } } == 3)
+assert(t[2][1] == "foobarbarbar")
+assert(#p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
+		   "three" } == 3)
 
+print("+")
 
 p = re.compile([[ {{ "add", ({.+}), ({.+}) }} -> add ]], { add = function (x, y)
 								    return x+y
@@ -48,19 +52,25 @@ assert(p:match{ "add", 72.5, 3 } == 75.5)
 assert(not p:match{ "sub", 72, 3 })
 assert(not p:match{ "add", 3 })
 
+print("+")
+
 p = re.compile[[ {{ "foo", { "bar", (!"baz" .+)*, "baz" }, "boo" }} ]]
 
 assert(select(4, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "three")
-assert(#{ p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" } } == 5)
+assert(#p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" } == 5)
 assert(select(5, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "baz")
 assert(select(2, p:match{ "foo", "bar", "baz", "boo" }) == "baz")
-assert(#{ p:match{ "foo", "bar", "baz", "boo" } } == 2)
+assert(#p:match{ "foo", "bar", "baz", "boo" } == 2)
+
+print("+")
 
 p = re.compile[[ {{ "foo", "bar", { (!"baz" .+)* }, "baz" , "boo" }} ]]
 
-assert(#{ p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" } } == 3)
+assert(#p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" } == 3)
 assert(select(3, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "three")
-assert(#{ p:match{ "foo", "bar", "baz", "boo" } } == 0)
+assert(#p:match{ "foo", "bar", "baz", "boo" } == 0)
+
+print("+")
 
 p = re.compile([[
 	       exp <- {{ "add", <exp>, <exp> }} -> add
@@ -76,7 +86,9 @@ p = re.compile([[
 assert(p:match{ "add", { "div", 8, 2 }, 3 } == 7)
 assert(p:match{ "sub", { "div", 8, { "add", 2, 2 } }, 3 } == -1)
 
-p = re.compile([[ exp <- {{ (.+ -> ops), <exp>, <exp> }} -> eval / {{ "num", {.} }} ]], 
+print("+")
+
+p = re.compile([[ exp <- {{ (.+ -> ops), <exp>, <exp> }} -> eval / {{ "num", ({.}) }} ]], 
 	       { ops = { add = function (x, y) return x + y end, 
                          sub = function (x, y) return x - y end,
                          mul = function (x, y) return x * y end,
@@ -87,6 +99,10 @@ assert(p:match{ "add", { "div", { "num", 8 }, { "num", 2 } }, { "num", 3 }} == 7
 assert(p:match{ "sub", { "div", { "num", 8 }, { "add", { "num", 2 }, { "num", 2 } } }, 
 		{ "num", 3  } } == -1)
 
+print("+")
+
+local S = m.S(" \n\t")^0
+
 parser = re.compile([[
   exp <- <add>
   add <- (<mul>:x <aop>:op <add>:y) -> { op, x, y } / <mul>
@@ -94,7 +110,7 @@ parser = re.compile([[
   prim <- ( `( <exp> `) ) / (%num):n -> { "num", n }
   aop <- (`+ -> "add") / (`- -> "sub")
   mop <- (`* -> "mul") / (`/ -> "div")
-]], { num = S * (m.C(lpeg.P"-"^-1 * lpeg.R("09")^1) / tonumber) * S })
+]], { num = S * (m.C(m.P"-"^-1 * m.R("09")^1) / tonumber) * S })
 
 assert(p:match(parser:match("8/2+3")) == 7)
 assert(p:match(parser:match("8 / (2 + 2) - 3")) == -1)

@@ -152,7 +152,7 @@ local exp = m.P{ "Exp",
 	)^0, function (a,b,f) return f(a,b) end );
   TableItem = m.V"TableCap" + ("(" * S * m.V"Prefix"/m.I * ")" * S) + m.V"TablePrefix";
   TableSlice = m.Cf(m.V"TableItem" * ("," * S * m.V"TableItem")^0, mt.__mul);
-  TableCap = "{" * S * m.V"TableSlice" * "}" * S / m.C;
+  TableCap = (m.P"{" - "{{") * S * m.V"TableSlice" * "}" * S / m.C;
   Primary = "(" * m.V"Exp" * "):" * name / function (p, name) return m.Cg(p, name) end
             + "(" * m.V"Exp" * ")"
             + String / m.P
