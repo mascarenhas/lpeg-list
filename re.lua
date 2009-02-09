@@ -55,6 +55,7 @@ local exp_follow = m.P"/" + ")" + "}" + ":}" + "~}" + name + -1
 
 name = m.C(name)
 
+
 -- identifiers only have meaning in a given environment
 local Identifier = name * m.Carg(1)
 
@@ -63,7 +64,6 @@ local num = m.C(m.R"09"^1) * S / tonumber
 local String = "'" * m.C((any - "'")^0) * "'" +
                '"' * m.C((any - '"')^0) * '"'
 
-local Token = S * "`" * m.C(any - m.S(" `\t\n")) * S
 
 local Cat = "%" * Identifier / function (c,Defs)
   local cat =  Defs and Defs[c] or Predef[c]
@@ -112,62 +112,22 @@ local exp = m.P{ "Exp",
                     )
             + "->" * S * ( m.Cg(String * m.Cc(mt.__div))
                          + m.P"{}" * m.Cc(nil, m.Ct)
-		      + m.Cmt("{" * S * (String + m.Ct(name)) * S * (
-				 "," * S * (String + m.Ct(name)))^0 * S * "}",
-				 function(s, i, ...)
-				    local names = { ... }
-				    return i, nil, function (p)
-						      return mt.__div(m.Ct(p), 
-								      function (t1)
-									 local t2 = {}
-									 for i = 1, #names do
-									    if type(names[i]) ==
-									        "string" then
-									       t2[i] = names[i]
-									    else
-									       t2[i] = 
-										  t1[names[i][1]]
-									    end
-									 end
-									 return t2
-								      end)
-						   end
-				 end)
                          + m.Cg(Identifier / getdef * m.Cc(mt.__div))
                          )
             + "=>" * S * m.Cg(Identifier / getdef * m.Cc(m.Cmt))
             ) * S
           )^0, function (a,b,f) return f(a,b) end );
-  TablePrefix = "&" * S * (m.V"Prefix" / m.I) / mt.__len
-                + "!" * S * (m.V"Prefix" / m.I) / mt.__unm
-                + m.V"TableSuffix";
-  TableSuffix = m.Cf((m.V"Primary"/m.I) * S *
-          ( ( m.P"+" * m.Cc(1, mt.__pow)
-            + m.P"*" * m.Cc(0, mt.__pow)
-            + m.P"?" * m.Cc(-1, mt.__pow)
-            + "^" * ( m.Cg(num * m.Cc(mult))
-                    + m.Cg(m.C(m.S"+-" * m.R"09"^1) * m.Cc(mt.__pow))
-                    )
-            ) * S
-	)^0, function (a,b,f) return f(a,b) end );
-  TableItem = m.V"TableCap" + ("(" * S * m.V"Prefix"/m.I * ")" * S) + m.V"TablePrefix";
-  TableSlice = m.Cf(m.V"TableItem" * ("," * S * m.V"TableItem")^0, mt.__mul);
-  TableCap = (m.P"{" - "{{") * S * m.V"TableSlice" * "}" * S / m.C;
-  Primary = "(" * m.V"Exp" * "):" * name / function (p, name) return m.Cg(p, name) end
-            + "(" * m.V"Exp" * ")"
+  Primary = "(" * m.V"Exp" * ")"
             + String / m.P
-            + Token / function (s) return S * s * S end
             + Class
             + Cat
             + "{:" * (name * ":" + m.Cc(nil)) * m.V"Exp" * ":}" /
                      function (n, p) return m.Cg(p, n) end
             + "=" * name / function (n) return m.Cmt(m.Cb(n), equalcap) end
             + m.P"{}" / m.Cp
-	    + "{{" * S * m.V"TableSlice" * "}}" / m.L
             + "{~" * m.V"Exp" * "~}" / m.Cs
             + "{" * m.V"Exp" * "}" / m.C
             + m.P"." * m.Cc(any)
-  	    + "<" * name * ">:" * name / function(def, name) return m.Cg(m.V(def), name) end
             + "<" * name * ">" / m.V;
   Definition = Identifier * S * '<-' * m.V"Exp";
   Grammar = m.Cf(m.V"Definition" / firstdef * m.Cg(m.V"Definition")^0, adddef) /

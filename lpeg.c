@@ -54,10 +54,27 @@ typedef unsigned char byte;
 typedef byte Charset[CHARSETSIZE];
 
 
-typedef const char *(*PattFunc) (const void *ud,
-                                 const char *o,  /* string start */
-                                 const char *s,  /* current position */
-                                 const char *e); /* string end */
+typedef enum StrKind {
+  Sstring, Slist, Sempty
+} StrKind;
+
+typedef struct Stream {
+  StrKind kind;
+  union {
+    struct {
+      const char *o;
+      const char *s;
+      const char *e;
+    } s;
+    struct {
+      int ref;
+      int cur;
+    } l;
+  } u;
+} Stream;
+
+
+typedef Stream *(*PattFunc) (const void *ud, Stream *s);
 
 
 /* Virtual Machine's instructions */
@@ -68,7 +85,7 @@ typedef enum Opcode {
   ICommit, IPartialCommit, IBackCommit, IFailTwice, IFail, IGiveup,
   IFunc,
   IFullCapture, IEmptyCapture, IEmptyCaptureIdx,
-  IOpenCapture, ICloseCapture, ICloseRunTime, IListOpen, IListClose, INext
+  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose
 } Opcode;
 
 
@@ -104,9 +121,8 @@ static const byte opproperties[] = {
   /* IOpenCapture */	ISCAPTURE | ISNOFAIL | ISMOVABLE | ISFENVOFF,
   /* ICloseCapture */	ISCAPTURE | ISNOFAIL | ISMOVABLE | ISFENVOFF,
   /* ICloseRunTime */	ISCAPTURE | ISFENVOFF,
-  /* IListOpen */       0,
-  /* IListClose */      0,
-  /* INext */           0,
+  /* IOpen */           0,
+  /* IClose */          0,
 };
 
 
@@ -143,22 +159,18 @@ static const Instruction giveup = {{IGiveup, 0, 0}};
 /* kinds of captures */
 typedef enum CapKind {
   Cclose, Cposition, Cconst, Cbackref, Carg, Csimple, Ctable, Cfunction,
-  Cquery, Cstring, Csubst, Cfold, Cruntime, Cgroup, Cslice
+  Cquery, Cstring, Csubst, Cfold, Cruntime, Cgroup
 } CapKind;
 
 #define iscapnosize(k)	((k) == Cposition || (k) == Cconst)
 
 
 typedef struct Capture {
-  const char *s;  /* position */
+  Stream s;  /* position */
   short idx;
   byte kind;
   byte siz;
-  int listref;
-  int sitem;
-  int eitem;
 } Capture;
-
 
 /* maximum size (in elements) for a pattern */
 #define MAXPATTSIZE	(SHRT_MAX - 10)
@@ -240,7 +252,7 @@ static void printcapkind (int kind) {
     "close", "position", "constant", "backref",
     "argument", "simple", "table", "function",
     "query", "string", "substitution", "fold",
-    "runtime", "group", "slice" };
+    "runtime", "group" };
   printf("%s", modes[kind]);
 }
 
@@ -260,7 +272,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
     "commit", "partial_commit", "back_commit", "failtwice", "fail", "giveup",
      "func",
      "fullcapture", "emptycapture", "emptycaptureidx", "opencapture",
-    "closecapture", "closeruntime", "listopen", "listclose", "next"
+    "closecapture", "closeruntime", "open", "close"
   };
   printf("%02ld: %s ", (long)(p - op), names[p->i.code]);
   switch ((Opcode)p->i.code) {
@@ -322,12 +334,15 @@ static void printpatt (Instruction *p) {
 
 static void printcap (Capture *cap) {
   printcapkind(cap->kind);
-  printf(" (idx: %d - size: %d) -> %p\n", cap->idx, cap->siz, cap->s);
+  switch(cap->s.kind) {
+    case Slist: printf(" (idx: %d - size: %d) -> r: %i c: %i\n", cap->idx, cap->siz, cap->s.u.l.ref, cap->s.u.l.cur); break;
+    case Sstring: printf(" (idx: %d - size: %d) -> %p\n", cap->idx, cap->siz, cap->s.u.s.s); break;
+  }
 }
 
 
 static void printcaplist (Capture *cap) {
-  for (; cap->s; cap++) printcap(cap);
+  for (; cap->s.kind != Sempty; cap++) printcap(cap);
 }
 
 /* }====================================================== */
@@ -343,18 +358,14 @@ static void printcaplist (Capture *cap) {
 
 
 typedef struct Stack {
-  const char *o;
-  const char *s;
-  const char *e;
+  Stream s;
   const Instruction *p;
   int caplevel;
-  int listref;
-  int curitem;
 } Stack;
 
 
 static int runtimecap (lua_State *L, Capture *close, Capture *ocap,
-                       const char *o, const char *s, int ptop);
+                       Stream *s, int ptop);
 
 
 static Capture *doublecap (lua_State *L, Capture *cap, int captop, int ptop) {
@@ -368,111 +379,163 @@ static Capture *doublecap (lua_State *L, Capture *cap, int captop, int ptop) {
 }
 
 
-static void adddyncaptures (const char *s, Capture *base, int n, int fd) {
+static void adddyncaptures (Stream *s, Capture *base, int n, int fd) {
   int i;
   assert(base[0].kind == Cruntime && base[0].siz == 0);
   base[0].idx = fd;  /* first returned capture */
   for (i = 1; i < n; i++) {  /* add extra captures */
     base[i].siz = 1;  /* mark it as closed */
-    base[i].s = s;
+    base[i].s = *s;
     base[i].kind = Cruntime;
     base[i].idx = fd + i;  /* stack index */
   }
   base[n].kind = Cclose;  /* add closing entry */
   base[n].siz = 1;
-  base[n].s = s;
+  base[n].s = *s;
 }
 
 
 #define condfailed(p)	{ int f = p->i.offset; if (f) p+=f; else goto fail; }
 
 
-static const char *match (lua_State *L,
-                          const char *o, const char *s, const char *e,
-                          Instruction *op, Capture *capture, int ptop) {
+static Stream *match (lua_State *L,
+		      Stream *s,
+		      Instruction *op, Capture *capture, int ptop) {
   Stack stackbase[MAXBACK];
   Stack *stacklimit = stackbase + MAXBACK;
   Stack *stack = stackbase;  /* point to first empty slot in stack */
   int capsize = IMAXCAPTURES;
   int captop = 0;  /* point to first empty slot in captures */
-  int listref;
-  int curitem;
   const Instruction *p = op;
-  if(lua_istable(L, SUBJIDX)) {
-    lua_pushvalue(L, plistidx(ptop));
-    listref = luaL_ref(L, plistidx(ptop));
-    lua_pushvalue(L, SUBJIDX);
-    curitem = luaL_ref(L, plistidx(ptop));
-  } else {
-    listref = LUA_REFNIL;
-    curitem = 0;
-  }
-  stack->p = &giveup; stack->s = s; stack->caplevel = 0; stack++;
+  stack->p = &giveup; stack->s = *s; stack->caplevel = 0; stack++;
   for (;;) {
 #if defined(DEBUG)
-      printf("s: |%s| stck: %d c: %d  ", s, stack - stackbase, captop);
+      printf("stck: %d c: %d  ", stack - stackbase, captop);
       printinst(op, p);
 #endif
     switch ((Opcode)p->i.code) {
       case IEnd: {
         assert(stack == stackbase + 1);
         capture[captop].kind = Cclose;
-        capture[captop].s = NULL;
-        return curitem < 0 ? "" : s;
+        capture[captop].s.kind = Sempty;
+        return s;
       }
       case IGiveup: {
         assert(stack == stackbase);
         return NULL;
       }
       case IRet: {
-        assert(stack > stackbase && (stack - 1)->s == NULL);
+        assert(stack > stackbase && (stack - 1)->s.kind == Sempty);
         p = (--stack)->p;
         continue;
       }
       case IAny: {
 	int n = p->i.aux;
-	if(s != NULL) {
-	  if (n <= e - s) { p++; s += n; }
-	  else condfailed(p);
-	} else if(n > 1) {
-	  curitem = curitem < 0 ? curitem : -curitem;
-	  condfailed(p);
-	} else {
-	  lua_rawgeti(L, plistidx(ptop), listref);
-	  assert(lua_istable(L, -1));
-	  lua_rawgeti(L, -1, curitem);
-	  if(!lua_isnil(L, -1)) { lua_pop(L, 2); curitem = -curitem; p++; }
-	  else { lua_pop(L, 2); condfailed(p); }
-	}
+        switch(s->kind) {
+	  case Sstring: {
+	    if (n <= s->u.s.e - s->u.s.s) { p++; s->u.s.s += n; }
+	    else condfailed(p);
+	    break;
+	  }
+  	  case Slist: {
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    assert(lua_istable(L, -1));
+	    for(; n > 0; n--, s->u.l.cur++) {
+	      lua_rawgeti(L, -1, s->u.l.cur);
+	      if(lua_isnil(L, -1)) { lua_pop(L, 1); break; }
+	      else lua_pop(L, 1);
+	    }
+	    lua_pop(L, 1);
+	    if(n > 0) { condfailed(p); } else p++;
+	    break;
+	  }
+	default: condfailed(p);
+        }
         continue;
       }
       case IChar: {
-        if (s < e && (byte)*s == p->i.aux) { p++; s++; }
-        else condfailed(p);
-        continue;
-      }
-      case ISet: {
-        int c = (byte)*s;
-        if (s < e && testchar((p+1)->buff, c))
-          { p += CHARSETINSTSIZE; s++; }
-        else condfailed(p);
-        continue;
-      }
-      case ISpan: {
-	if(s == NULL) { 
-	  if(curitem > 0) curitem = -curitem;
-	  p += CHARSETINSTSIZE;
-	} else {
-	  for (; s < e; s++) {
-	    int c = (byte)*s;
-	    if (!testchar((p+1)->buff, c)) break;
+	switch(s->kind) {
+	  case Sstring: {
+	    if (s->u.s.s < s->u.s.e && 
+		(byte)(*(s->u.s.s)) == p->i.aux) { p++; s->u.s.s++; }
+	    else condfailed(p);
+	    break;
 	  }
-	  p += CHARSETINSTSIZE;
+  	  case Slist: {
+	    const char *c; size_t siz;
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    assert(lua_istable(L, -1));
+	    lua_rawgeti(L, -1, s->u.l.cur);
+	    if(lua_type(L, -1) != LUA_TSTRING) { 
+	      lua_pop(L, 2); condfailed(p); break;
+	    }
+	    c = lua_tolstring(L, -1, &siz);
+	    if(siz == 1 && (byte)*c == p->i.aux) { p++; s->u.l.cur++; }
+	    else condfailed(p);
+	    lua_pop(L, 2);
+	    break;
+	  }
+	  default: { condfailed(p); }
 	}
         continue;
       }
+      case ISet: {
+	switch(s->kind) {
+	  case Sstring: {
+	    int c = (byte)*(s->u.s.s);
+	    if (s->u.s.s < s->u.s.e && testchar((p+1)->buff, c))
+	      { p += CHARSETINSTSIZE; s->u.s.s++; }
+	    else condfailed(p);
+	    break;
+	  }
+	  case Slist: {
+	    const char *c; size_t siz;
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    assert(lua_istable(L, -1));
+	    lua_rawgeti(L, -1, s->u.l.cur);
+	    if(lua_type(L, -1) != LUA_TSTRING) { 
+	      lua_pop(L, 2); condfailed(p); break;
+	    }
+	    c = lua_tolstring(L, -1, &siz);
+	    if(siz == 1 && testchar((p+1)->buff, (byte)*c))
+	      { p += CHARSETINSTSIZE; s->u.l.cur++; }
+	    else condfailed(p);
+	    lua_pop(L, 2);
+	    break;
+	  }
+  	  default: condfailed(p);
+	}
+	continue;
+      }
+      case ISpan: {
+	switch(s->kind) {
+	  case Sstring: {
+	    for (; s->u.s.s < s->u.s.e; s->u.s.s++) {
+	      int c = (byte)*(s->u.s.s);
+	      if (!testchar((p+1)->buff, c)) break;
+	    }
+	    break;
+	  }
+	  case Slist: {
+	    const char *c; size_t siz;
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    assert(lua_istable(L, -1));
+	    for(;; s->u.l.cur++) {
+	      lua_rawgeti(L, -1, s->u.l.cur);
+	      if(lua_type(L, -1) != LUA_TSTRING) { lua_pop(L, 1); break; }
+	      c = lua_tolstring(L, -1, &siz);
+	      if(siz != 1 || !testchar((p+1)->buff, (byte)*c))
+		{ lua_pop(L, 1); break; }
+	      lua_pop(L, 1);
+	    }
+	    lua_pop(L, 1);
+	  }
+	}
+	p += CHARSETINSTSIZE;
+	continue;
+      }
       case IFunc: {
-        const char *r = (p+1)->f((p+2)->buff, o, s, e);
+        Stream *r = (p+1)->f((p+2)->buff, s);
         if (r == NULL) goto fail;
         s = r;
         p += p->i.offset;
@@ -482,94 +545,102 @@ static const char *match (lua_State *L,
         p += p->i.offset;
         continue;
       }
-      case IListOpen: {
-	lua_rawgeti(L, plistidx(ptop), listref);
-	assert(lua_istable(L, -1));
-	lua_rawgeti(L, -1, curitem);
-	if(!lua_istable(L, -1)) {
-	  lua_pop(L, 2);
-	  condfailed(p);
-	} else {
-	  if (stack >= stacklimit)
-	    return (luaL_error(L, "too many pending calls/choices"), (char *)0);
-	  stack->p = NULL;
-	  stack->s = s; s = NULL;
-	  stack->o = o; o = NULL;
-	  stack->e = e; e = NULL;
-	  stack->listref = listref;
-	  stack->curitem = curitem;
-	  stack++;
-	  listref = luaL_ref(L, plistidx(ptop));
-	  curitem = 0;
-	  lua_pop(L, 1);
-	  p++;
+      case IOpen: {
+	switch(s->kind) {
+	  case Slist: {
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    assert(lua_istable(L, -1));
+	    lua_rawgeti(L, -1, s->u.l.cur);
+	    switch(lua_type(L, -1)) {
+	      case LUA_TTABLE: {
+		if (stack >= stacklimit)
+		  return (luaL_error(L, "too many pending calls/choices"), 
+			  (Stream *)0);
+		stack->p = NULL;
+		s->u.l.cur++;
+		stack->s = *s;
+		stack++;
+		s->kind = Slist;
+		s->u.l.ref = luaL_ref(L, plistidx(ptop));
+		s->u.l.cur = 1;
+		p++;
+		break;
+	      }
+	      case LUA_TSTRING: {
+		size_t siz;
+		if (stack >= stacklimit)
+		  return (luaL_error(L, "too many pending calls/choices"), 
+			  (Stream *)0);
+		stack->p = NULL;
+		s->u.l.cur++;
+		stack->s = *s;
+		stack++;
+		s->kind = Sstring;
+		s->u.s.o = lua_tolstring(L, -1, &siz);
+		lua_pop(L, 1);
+		s->u.s.s = s->u.s.o;
+		s->u.s.e = s->u.s.o + siz;
+		p++;
+		break;
+	      }
+	      default: condfailed(p);
+	    }
+	    lua_pop(L, 1);
+	    break;
+	  }
+	  default: condfailed(p);
 	}
 	continue;
       }
-      case IListClose: {
-	if((s != NULL && s < e) || (s == NULL && curitem > 0)) {
-	  condfailed(p);
-	} else {
-	  lua_rawgeti(L, plistidx(ptop), listref);
-	  assert(lua_istable(L, -1) && stack > stackbase && (stack - 1)->p == NULL);
-	  lua_rawgeti(L, -1, curitem > 0 ? curitem + 1 : 1 - curitem);
-	  luaL_unref(L, plistidx(ptop), listref);
-	  if(!lua_isnil(L, -1)) {
-	    lua_pop(L, 2);
-	    condfailed(p);
-	  } else {
-	    lua_pop(L, 2);
-	    --stack;
-	    s = stack->s;
-	    o = stack->o;
-	    e = stack->e;
-	    listref = stack->listref;
-	    curitem = -stack->curitem;
-	    p++;
+      case IClose: {
+	switch(s->kind) {
+	  case Slist: {
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    assert(lua_istable(L, -1) && stack > stackbase && 
+		   (stack - 1)->p == NULL);
+	    lua_rawgeti(L, -1, s->u.l.cur);
+	    luaL_unref(L, plistidx(ptop), s->u.l.ref);
+	    if(!lua_isnil(L, -1)) {
+	      condfailed(p);
+	    } else {
+	      --stack;
+	      *s = stack->s;
+	      p++;
+	    }
+	    lua_pop(L, 2); break;
 	  }
-	}
-	continue;
-      }
-      case INext: {
-	size_t size;
-	if((s!= NULL && s < e) || (s == NULL && curitem > 0)) {
-	  condfailed(p);
-	} else {
-	  lua_rawgeti(L, plistidx(ptop), listref);
-	  assert(lua_istable(L, -1));
-	  curitem = curitem > 0 ? curitem + 1 : 1 - curitem;
-	  lua_rawgeti(L, -1, curitem);
-	  if(lua_type(L, -1) == LUA_TSTRING) {
-	    o = (s = lua_tolstring(L, -1, &size));
-	    lua_pop(L, 2);
-	    e = o + size;
-	  } else {
-	    lua_pop(L, 2);
-	    s = (o = (e = NULL));
+	  case Sstring: {
+	    if(s->u.s.s < s->u.s.e) { condfailed(p); }
+	    else {
+	      --stack;
+	      *s = stack->s;
+	      p++;
+	    }
+	    break;
 	  }
-	  p++;
+	  default: condfailed(p);
 	}
 	continue;
       }
       case IChoice: {
         if (stack >= stacklimit)
-          return (luaL_error(L, "too many pending calls/choices"), (char *)0);
+          luaL_error(L, "too many pending calls/choices");
         stack->p = dest(0, p);
-        stack->s = s - p->i.aux;
-	stack->o = o; stack->e = e;
+	stack->s = *s;
         stack->caplevel = captop;
-	stack->listref = listref;
-	stack->curitem = curitem;
+	switch(s->kind) {
+  	  case Slist: stack->s.u.l.cur -= p->i.aux; break;
+	  case Sstring: stack->s.u.s.s -= p->i.aux; break;
+	}
         stack++;
         p++;
         continue;
       }
       case ICall: {
         if (stack >= stacklimit)
-          return (luaL_error(L, "too many pending calls/choices"), (char *)0);
-        stack->s = NULL;
+          return (luaL_error(L, "too many pending calls/choices"), (Stream *)0);
+        stack->s.kind = Sempty;
         stack->p = p + 1;  /* save return address */
-	stack->curitem = INT_MAX;
         stack++;
         p += p->i.offset;
         continue;
@@ -582,22 +653,14 @@ static const char *match (lua_State *L,
       }
       case IPartialCommit: {
         assert(stack > stackbase);
-        (stack - 1)->s = s;
-        (stack - 1)->o = o;
-        (stack - 1)->e = e;
+        (stack - 1)->s = *s;
         (stack - 1)->caplevel = captop;
-	(stack - 1)->listref = listref;
-	(stack - 1)->curitem = curitem;
         p += p->i.offset;
         continue;
       }
       case IBackCommit: {
         assert(stack > stackbase);
-        s = (--stack)->s;
-        o = stack->o;
-        e = stack->e;
-	listref = stack->listref;
-	curitem = stack->curitem;
+        *s = (--stack)->s;
         p += p->i.offset;
         continue;
       }
@@ -610,21 +673,20 @@ static const char *match (lua_State *L,
         do {  /* remove pending calls/lists */
           assert(stack > stackbase);
 	  --stack;
-	  if(stack->p == NULL) {
-	    luaL_unref(L, plistidx(ptop), listref);
-	    listref = stack->listref;
-	  }
-        } while (stack->curitem == INT_MAX || stack->p == NULL);
-	s = stack->s; o = stack->o; e = stack->e;
-	listref = stack->listref;
-	curitem = stack->curitem;
+	  if(stack->p == NULL && s->kind == Slist) 
+	    luaL_unref(L, plistidx(ptop), s->u.l.ref);
+	  *s = stack->s;
+        } while (s->kind == Sempty || stack->p == NULL);
 	captop = stack->caplevel;
         p = stack->p;
         continue;
       }
       case ICloseRunTime: {
+	if(s->kind != Sstring) 
+	  return (luaL_error(L, "dynamic captures need string subjects"), 
+		  (Stream*)0);
         int fr = lua_gettop(L) + 1;  /* stack index of first result */
-        int ncap = runtimecap(L, capture + captop, capture, o, s, ptop);
+        int ncap = runtimecap(L, capture + captop, capture, s, ptop);
         lua_Integer res = lua_tointeger(L, fr) - 1;  /* offset */
         int n = lua_gettop(L) - fr;  /* number of new captures */
         if (res == -1) {  /* may not be a number */
@@ -633,11 +695,11 @@ static const char *match (lua_State *L,
             goto fail;  /* and fail */
           }
           else if (lua_isboolean(L, fr))  /* true? */
-            res = s - o;  /* keep current position */
+            res = s->u.s.s - s->u.s.o;  /* keep current position */
         }
-        if (res < s - o || res > e - o)
+        if (res < s->u.s.s - s->u.s.o || res > s->u.s.e - s->u.s.o)
           luaL_error(L, "invalid position returned by match-time capture");
-        s = o + res;  /* update current position */
+        s->u.s.s = s->u.s.o + res;  /* update current position */
         captop -= ncap;  /* remove nested captures */
         lua_remove(L, fr);  /* remove first result (offset) */
         if (n > 0) {  /* captures? */
@@ -651,20 +713,40 @@ static const char *match (lua_State *L,
         continue;
       }
       case ICloseCapture: {
-        const char *s1 = s - getoff(p);
-        assert(captop > 0);
-	if(capture[captop - 1].kind == Cslice)
-	  capture[captop - 1].eitem = curitem > 0 ? curitem : -curitem;
-        if (capture[captop - 1].siz == 0 &&
-            s1 - capture[captop - 1].s < UCHAR_MAX) {
-          capture[captop - 1].siz = s1 - capture[captop - 1].s + 1;
-          p++;
-          continue;
-        }
-        else {
-          capture[captop].siz = 1;  /* mark entry as closed */
-          goto capture;
-        }
+	switch(s->kind) {
+  	  case Sstring: {
+	    const char *s1 = s->u.s.s - getoff(p);
+	    assert(captop > 0);
+	    if (capture[captop - 1].siz == 0 &&
+		s1 - capture[captop - 1].s.u.s.s < UCHAR_MAX) {
+	      capture[captop - 1].siz = s1 - capture[captop - 1].s.u.s.s + 1;
+	      p++;
+	      continue;
+	    }
+	    else {
+	      capture[captop].siz = 1;  /* mark entry as closed */
+	      goto capture;
+	    }
+	    break;
+	  }
+	  case Slist: {
+	    int cur1 = s->u.l.cur - getoff(p) - 1;
+	    assert(captop > 0);
+	    if (capture[captop - 1].siz == 0 &&
+		cur1 - capture[captop - 1].s.u.l.cur < UCHAR_MAX) {
+	      capture[captop - 1].siz = cur1 - 
+		capture[captop - 1].s.u.l.cur + 1;
+	      p++;
+	      continue;
+	    }
+	    else {
+	      capture[captop].siz = 1;  /* mark entry as closed */
+	      goto capture;
+	    }
+	  }
+	default: return 
+	    (luaL_error(L, "closing capture over invalid subject"), (Stream*)0);
+	}
       }
       case IEmptyCapture: case IEmptyCaptureIdx:
         capture[captop].siz = 1;  /* mark entry as closed */
@@ -673,20 +755,18 @@ static const char *match (lua_State *L,
         capture[captop].siz = 0;  /* mark entry as open */
         goto capture;
       case IFullCapture:
-        capture[captop].siz = getoff(p) + 1;  /* save capture size */
+	capture[captop].siz = getoff(p) + 1;  /* save capture size */
       capture: {
-        capture[captop].s = s - getoff(p);
+	capture[captop].s = *s;
+	switch(s->kind) {
+	  case Slist: capture[captop].s.u.l.cur -= getoff(p); break;
+  	  case Sstring: capture[captop].s.u.s.s -= getoff(p); break;
+	  default: 
+	    return (luaL_error(L, "closing capture over invalid subject"),
+		    (Stream*)0);
+	}
         capture[captop].idx = p->i.offset;
         capture[captop].kind = getkind(p);
-	capture[captop].listref = LUA_REFNIL;
-	if(s == NULL || capture[captop].kind == Cslice) {
-	  lua_rawgeti(L, plistidx(ptop), listref);
-	  capture[captop].listref = luaL_ref(L, plistidx(ptop));
-	  if(capture[captop].kind == Cslice)
-	    capture[captop].sitem = (curitem > 0 ? curitem : -curitem) + 1;
-	  else
-	    capture[captop].sitem = (curitem > 0 ? curitem : -curitem);
-	}
         if (++captop >= capsize) {
           capture = doublecap(L, capture, captop, ptop);
           capsize = 2 * captop;
@@ -701,8 +781,6 @@ static const char *match (lua_State *L,
       default: assert(0); return NULL;
     }
   }
-  luaL_unref(L, plistidx(ptop), curitem);
-  luaL_unref(L, plistidx(ptop), listref);
 }
 
 /* }====================================================== */
@@ -717,9 +795,10 @@ static const char *match (lua_State *L,
 
 static int verify (lua_State *L, Instruction *op, const Instruction *p,
                    Instruction *e, int postable, int rule) {
-  static const char dummy[] = "";
+  Stream dummy;
   Stack back[MAXBACK];
   int backtop = 0;  /* point to first empty slot in back */
+  dummy.kind = Sstring;
   while (p != e) {
     switch ((Opcode)p->i.code) {
       case IRet: {
@@ -738,7 +817,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         assert((p + 1)->i.code != IRet);  /* no tail call */
         if (backtop >= MAXBACK)
           return luaL_error(L, "too many pending calls/choices");
-        back[backtop].s = NULL;
+        back[backtop].s.kind = Sempty;
         back[backtop++].p = p + 1;
         goto dojmp;
       }
@@ -747,12 +826,12 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         if (postable == 0)  /* grammar still not fixed? */
           goto fail;  /* to be verified later */
         for (i = 0; i < backtop; i++) {
-          if (back[i].s == NULL && back[i].p == p + 1)
+          if (back[i].s.kind == Sempty && back[i].p == p + 1)
             return luaL_error(L, "%s is left recursive", val2str(L, rule));
         }
         if (backtop >= MAXBACK)
           return luaL_error(L, "too many pending calls/choices");
-        back[backtop].s = NULL;
+        back[backtop].s.kind = Sempty;
         back[backtop++].p = p + 1;
         p = op + getposition(L, postable, p->i.offset);
         continue;
@@ -773,9 +852,8 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
           continue;
         }
       }
-      case IListOpen:
-      case IListClose:
-      case INext:
+      case IOpen:
+      case IClose:
       {
 	p++;
 	continue;
@@ -804,7 +882,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         do {
           if (backtop-- == 0)
             return 1;  /* no more backtracking */
-        } while (back[backtop].s == NULL);
+        } while (back[backtop].s.kind == Sempty);
         p = back[backtop].p;
         continue;
       }
@@ -819,7 +897,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         goto fail;  /* be liberal in this case */
       }
       case IFunc: {
-        const char *r = (p+1)->f((p+2)->buff, dummy, dummy, dummy);
+        Stream *r = (p+1)->f((p+2)->buff, &dummy);
         if (r == NULL) goto fail;
         p += p->i.offset;
         continue;
@@ -1385,18 +1463,9 @@ static int pattlist_l (lua_State *L) {
   Instruction *p;
   Instruction *p1 = getpatt(L, 1, &l);
   op = newpatt(L, 2 + l);
-  setinst(op++, IListOpen, 0);
+  setinst(op++, IOpen, 0);
   p = op + addpatt(L, op, 1);
-  setinst(p, IListClose, 0);
-  return 1;
-}
-
-static int pattitem_l (lua_State *L) {
-  int l;
-  Instruction *p1 = getpatt(L, 1, &l);
-  Instruction *op = newpatt(L, 1 + l);
-  setinst(op++, INext, 0);
-  addpatt(L, op, 1);
+  setinst(p, IClose, 0);
   return 1;
 }
 
@@ -1727,15 +1796,7 @@ static int capture_aux (lua_State *L, int kind, int labelidx) {
 }
 
 
-static int capture_l (lua_State *L) { 
-  int l;
-  Instruction *p = getpatt(L, 1, &l);
-  while((Opcode)p->i.code == IChoice) p++;
-  if((Opcode)p->i.code == INext)
-    return capture_aux(L, Cslice, 0); 
-  else
-    return capture_aux(L, Csimple, 0); 
-}
+static int capture_l (lua_State *L) { return capture_aux(L, Csimple, 0); }
 static int tcapture_l (lua_State *L) { return capture_aux(L, Ctable, 0); }
 static int capsubst_l (lua_State *L) { return capture_aux(L, Csubst, 0); }
 
@@ -1845,12 +1906,11 @@ static void newpattfunc (lua_State *L, PattFunc f, const void *ud, size_t l) {
 
 #include <ctype.h>
 
-static const char *span (const void *ud, const char *o,
-                                         const char *s,
-                                         const char *e) {
+static Stream *span (const void *ud, Stream *s) {
   const char *u = (const char *)ud;
-  (void)o; (void)e;
-  return s + strspn(s, u);
+  if(s->kind != Sstring) return NULL;
+  s->u.s.s += strspn(s->u.s.s, u);
+  return s;
 }
 
 
@@ -1876,7 +1936,6 @@ typedef struct CapState {
   Capture *ocap;  /* (original) capture list */
   lua_State *L;
   int ptop;  /* index of last argument to 'match' */
-  const char *s;  /* original string */
   int valuecached;  /* value stored in cache slot */
 } CapState;
 
@@ -1885,24 +1944,30 @@ typedef struct CapState {
 
 #define isclosecap(cap)	(captype(cap) == Cclose)
 
-#define closeaddr(c)	((c)->s + (c)->siz - 1)
+#define closeaddr(c)	((c)->s.u.s.s + (c)->siz - 1)
 
 #define isfullcap(cap)	((cap)->siz != 0)
 
 #define getfromenv(cs,v)	lua_rawgeti((cs)->L, penvidx((cs)->ptop), v)
 #define pushluaval(cs)		getfromenv(cs, (cs)->cap->idx)
 
-#define pushsubject(cs, c) { if((c)->s) lua_pushlstring((cs)->L, (c)->s, (c)->siz - 1); else pushitem((cs), (c)); }
+#define pushsubject(cs, c) { if((c)->s.kind == Sstring) lua_pushlstring((cs)->L, (c)->s.u.s.s, (c)->siz - 1); else if((c)->s.kind == Slist) pushitems((cs), (c), (c)->siz); else luaL_error((cs)->L, "invalid stream type"); }
+
+#define pushmatch(cs, c1, c2) { if((c1)->s.kind == Sstring) lua_pushlstring((cs)->L, (c1)->s.u.s.s, (c2)->s.u.s.s - (c1)->s.u.s.s); else if((c1)->s.kind == Slist) pushitems((cs), (c1), (c2)->s.u.l.cur - (c1)->s.u.l.cur + 1); else luaL_error((cs)->L, "invalid stream type"); }
 
 
 #define updatecache(cs,v) { if ((v) != (cs)->valuecached) updatecache_(cs,v); }
 
 
-static void pushitem (CapState *cs, Capture *c) {
-  lua_rawgeti(cs->L, plistidx(cs->ptop), c->listref);
-  luaL_unref(cs->L, plistidx(cs->ptop), c->listref);
-  lua_rawgeti(cs->L, -1, c->sitem);
-  lua_remove(cs->L, -2);
+static void pushitems (CapState *cs, Capture *c, int n) {
+  int i;
+  lua_createtable(cs->L, n, 0);
+  lua_rawgeti(cs->L, plistidx(cs->ptop), c->s.u.l.ref);
+  for(i = 1; i <= n; i++) {
+    lua_rawgeti(cs->L, -1, c->s.u.l.cur + i - 1);
+    lua_rawseti(cs->L, -3, i);
+  }
+  lua_pop(cs->L, 1);
 }
 
 static void updatecache_ (CapState *cs, int v) {
@@ -1945,17 +2010,13 @@ static int pushallvalues (CapState *cs, int addextra) {
   Capture *co = cs->cap;
   int n = 0;
   if (isfullcap(cs->cap++)) {
-    if(co->listref == LUA_REFNIL) {
-      pushsubject(cs, co);  /* push whole match */
-    } else {
-      pushitem(cs, co);
-    }
+    pushsubject(cs, co);  /* push whole match */
     return 1;
   }
   while (!isclosecap(cs->cap))
     n += pushcapture(cs);
   if (addextra || n == 0) {  /* need extra? */
-    lua_pushlstring(cs->L, co->s, cs->cap->s - co->s);  /* push whole match */
+    pushmatch(cs, co, cs->cap); /* push whole match */
     n++;
   }
   cs->cap++;  /* skip close entry */
@@ -2078,19 +2139,19 @@ static int functioncap (CapState *cs) {
 
 
 static int runtimecap (lua_State *L, Capture *close, Capture *ocap,
-                       const char *o, const char *s, int ptop) {
+                       Stream *s, int ptop) {
   CapState cs;
   int n;
   Capture *open = findopen(close);
   assert(captype(open) == Cruntime);
   close->kind = Cclose;
-  close->s = s;
+  close->s = *s;
   cs.ocap = ocap; cs.cap = open; cs.L = L;
-  cs.s = o; cs.valuecached = 0; cs.ptop = ptop;
+  cs.valuecached = 0; cs.ptop = ptop;
   luaL_checkstack(L, 4, "too many runtime captures");
   pushluaval(&cs);
   lua_pushvalue(L, SUBJIDX);  /* push original subject */
-  lua_pushinteger(L, s - o + 1);  /* current position */
+  lua_pushinteger(L, s->u.s.s - s->u.s.o + 1);  /* current position */
   n = pushallvalues(&cs, 0);
   lua_call(L, n + 2, LUA_MULTRET);
   return close - open;
@@ -2114,7 +2175,7 @@ typedef struct StrAux {
 static int getstrcaps (CapState *cs, StrAux *cps, int n) {
   int k = n++;
   cps[k].isstring = 1;
-  cps[k].u.s.s = cs->cap->s;
+  cps[k].u.s.s = cs->cap->s.u.s.s;
   if (!isfullcap(cs->cap++)) {
     while (!isclosecap(cs->cap)) {
       if (n >= MAXSTRCAPS)  /* too many captures? */
@@ -2171,20 +2232,20 @@ static void stringcap (luaL_Buffer *b, CapState *cs) {
 
 
 static void substcap (luaL_Buffer *b, CapState *cs) {
-  const char *curr = cs->cap->s;
+  const char *curr = cs->cap->s.u.s.s;
   if (isfullcap(cs->cap))  /* no nested captures? */
     luaL_addlstring(b, curr, cs->cap->siz - 1);  /* keep original text */
   else {
     cs->cap++;
     while (!isclosecap(cs->cap)) {
-      const char *next = cs->cap->s;
+      const char *next = cs->cap->s.u.s.s;
       luaL_addlstring(b, curr, next - curr);  /* add text up to capture */
       if (addonestring(b, cs, "replacement") == 0)  /* no capture value? */
         curr = next;  /* keep original text in final result */
       else
         curr = closeaddr(cs->cap - 1);  /* continue after match */
     }
-    luaL_addlstring(b, curr, cs->cap->s - curr);  /* add last piece of text */
+    luaL_addlstring(b, curr, cs->cap->s.u.s.s - curr);  /* add last piece of text */
   }
   cs->cap++;  /* go to next capture */
 }
@@ -2217,7 +2278,7 @@ static int pushcapture (CapState *cs) {
   luaL_checkstack(cs->L, 4, "too many captures");
   switch (captype(cs->cap)) {
     case Cposition: {
-      lua_pushinteger(cs->L, cs->cap->s - cs->s + 1);
+      lua_pushinteger(cs->L, cs->cap->s.u.s.s - cs->cap->s.u.s.o + 1);
       cs->cap++;
       return 1;
     }
@@ -2233,31 +2294,11 @@ static int pushcapture (CapState *cs) {
       lua_pushvalue(cs->L, arg + FIXEDARGS);
       return 1;
     }
-    case Cslice: {
-      int i;
-      int listref = lua_gettop(cs->L) + 1;
-      lua_rawgeti(cs->L, plistidx(cs->ptop), cs->cap->listref);
-      lua_createtable(cs->L, cs->cap->eitem - cs->cap->sitem + 1, 0);
-      for(i = 1; cs->cap->sitem <= cs->cap->eitem; i++, cs->cap->sitem++) {
-	lua_rawgeti(cs->L, listref, cs->cap->sitem);
-	lua_rawseti(cs->L, -2, i);
-      }
-      lua_remove(cs->L, listref);
-      luaL_unref(cs->L, plistidx(cs->ptop), cs->cap->listref);
-      cs->cap++;
-      return 1;
-    }
     case Csimple: {
-      if(cs->cap->listref != LUA_REFNIL) {
-	pushitem(cs, cs->cap);
-	cs->cap++;
-	return 1;
-      } else {
-	int k = pushallvalues(cs, 1);
-	if (k > 1)
-	  lua_insert(cs->L, -k);  /* whole match is first result */
-	return k;
-      }
+      int k = pushallvalues(cs, 1);
+      if (k > 1)
+	lua_insert(cs->L, -k);  /* whole match is first result */
+      return k;
     }
     case Cruntime: {
       int n = 0;
@@ -2300,19 +2341,23 @@ static int pushcapture (CapState *cs) {
 }
 
 
-static int getcaptures (lua_State *L, const char *s, const char *r, int ptop) {
+static int getcaptures (lua_State *L, Stream *r, int ptop) {
   Capture *capture = (Capture *)lua_touserdata(L, caplistidx(ptop));
   int n = 0;
   if (!isclosecap(capture)) {  /* is there any capture? */
     CapState cs;
     cs.ocap = cs.cap = capture; cs.L = L;
-    cs.s = s; cs.valuecached = 0; cs.ptop = ptop;
+    cs.valuecached = 0; cs.ptop = ptop;
     do {  /* collect their values */
       n += pushcapture(&cs);
     } while (!isclosecap(cs.cap));
   }
   if (n == 0) {  /* no capture values? */
-    lua_pushinteger(L, r - s + 1);  /* return only end position */
+    switch(r->kind) {  /* return only end position */
+      case Slist: lua_pushinteger(L, r->u.l.cur);
+      case Sstring: lua_pushinteger(L, r->u.s.s - r->u.s.o + 1); break;
+      default: lua_pushnil(L);
+    }
     n = 1;
   }
   return n;
@@ -2390,31 +2435,47 @@ static int printpat_l (lua_State *L) {
 
 static int matchl (lua_State *L) {
   Capture capture[IMAXCAPTURES];
-  const char *r;
   size_t l;
-  const char *s;
+  Stream s;
+  Stream *r;
   Instruction *p = getpatt(L, 1, NULL);
-  if(lua_isstring(L, SUBJIDX))
-    s = lua_tolstring(L, SUBJIDX, &l);
-  else {
-    s = NULL;
-    l = 0;
-  }
   int ptop = lua_gettop(L);
-  lua_Integer ii = luaL_optinteger(L, 3, 1);
-  size_t i = (ii > 0) ?
-             (((size_t)ii <= l) ? (size_t)ii - 1 : l) :
-             (((size_t)-ii <= l) ? l - ((size_t)-ii) : 0);
   lua_pushnil(L);  /* subscache */
   lua_pushlightuserdata(L, capture);  /* caplistidx */
   lua_getfenv(L, 1);  /* penvidx */
   lua_createtable(L, 0, 0); /* lists */
-  r = match(L, s, s + i, s + l, p, capture, ptop);
+  switch(lua_type(L, SUBJIDX)) {
+    case LUA_TSTRING: {
+      s.kind = Sstring;
+      s.u.s.o = lua_tolstring(L, SUBJIDX, &l);
+      lua_Integer ii = luaL_optinteger(L, 3, 1);
+      size_t i = (ii > 0) ?
+	(((size_t)ii <= l) ? (size_t)ii - 1 : l) :
+	(((size_t)-ii <= l) ? l - ((size_t)-ii) : 0);
+      s.u.s.s = s.u.s.o + i;
+      s.u.s.e = s.u.s.o + l;
+      break;
+    }
+    case LUA_TTABLE: {
+      s.kind = Slist;
+      l = lua_objlen(L, SUBJIDX);
+      lua_Integer ii = luaL_optinteger(L, 3, 1);
+      int i = (ii > 0) ?
+	(((size_t)ii <= l) ? ii : (int)l) :
+	(((size_t)-ii <= l) ? (int)l + ii + 1 : 1);
+      lua_pushvalue(L, SUBJIDX);
+      s.u.l.ref = luaL_ref(L, plistidx(ptop));
+      s.u.l.cur = i;
+      break;
+    }
+    default: luaL_error(L, "subject type not supported");
+  }
+  r = match(L, &s, p, capture, ptop);
   if (r == NULL) {
     lua_pushnil(L);
     return 1;
   }
-  return getcaptures(L, s, r, ptop);
+  return getcaptures(L, r, ptop);
 }
 
 
@@ -2437,7 +2498,6 @@ static struct luaL_reg pattreg[] = {
   {"S", set_l},
   {"V", nter_l},
   {"L", pattlist_l},
-  {"I", pattitem_l},
   {"span", span_l},
   {"type", type_l},
   {"version", version_l},

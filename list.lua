@@ -40,14 +40,14 @@ end
 
 local function select(n, t) return t[n] end
 
-p = m.L(m.I"one" * m.I"two" * m.I(m.L(m.I"foo" * m.I"bar")) * m.I"three")
+p = m.L("one") * m.L("two") * m.L(m.L"foo" * m.L"bar") * m.L"three"
 
 assert(p:match{ "one", "two", { "foo", "bar" }, "three" })
 
 print("+")
 
-p = m.L(m.I"one" * m.I"two" * (m.I(m.L(m.I"foo" * m.I"bar")) +
-			     m.I(m.L(m.I"baz" * m.I"boo"))) * m.I"three")
+p = m.L"one" * m.L"two" * (m.L(m.L"foo" * m.L"bar") +
+			     m.L(m.L"baz" * m.L"boo")) * m.L"three"
 
 assert(p:match{ "one", "two", { "foo", "bar" }, "three" })
 assert(p:match{ "one", "two", { "baz", "boo" }, "three" })
@@ -58,7 +58,7 @@ assert(not p:match{ "one", "two", { "baz", "boo" }, "thr" })
 
 print("+")
 
-p = m.L(m.I"one" * m.I"two"^1 * m.I"three")
+p = m.L"one" * (m.L"two")^1 * m.L"three"
 
 assert(p:match{ "one", "two", "three" })
 assert(not p:match{ "one", "three" })
@@ -67,7 +67,7 @@ assert(p:match{ "one", "two", "two", "two", "three" })
 
 print("+")
 
-p = m.L(m.I"one" * m.I"two"^1 * m.I("thr" * m.P("e")^1))
+p = m.L"one" * (m.L"two")^1 * m.L("thr" * m.P("e")^1)
 
 assert(p:match{ "one", "two", "three" })
 assert(not p:match{ "one", "three" })
@@ -78,8 +78,8 @@ assert(not p:match{ "one", "two", "thr" })
 
 print("+")
 
-p = m.L(m.I"one" * m.C(m.I"two") * (m.I(m.L(m.I"foo" * m.I"bar")) +
-			     m.I(m.L(m.I"baz" * m.I"boo")))^0 * m.I"three")
+p = m.L"one" * m.C(m.L"two") * (m.L(m.L"foo" * m.L"bar") +
+			     m.L(m.L"baz" * m.L"boo"))^0 * m.L"three"
 
 assert(p:match{ "one", "two", "three" }[1] == "two")
 assert(#p:match{ "one", "two", "three" } == 1)
@@ -90,9 +90,9 @@ assert(p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" }, "three" })
 
 print("+")
 
-p = m.L(m.I"one" * m.C(m.I"two" * (m.I(m.L(m.I"foo" * m.I"bar")) +
-				       m.I(m.L(m.I"baz" * m.I"boo")))^0)
-      * m.I"three")
+p = m.L"one" * m.C(m.L"two" * (m.L(m.L"foo" * m.L"bar") +
+				       m.L(m.L"baz" * m.L"boo"))^0)
+      * m.L"three"
 
 assert(p:match{ "one", "two", "three" }[1] == "two")
 assert(#p:match{ "one", "two", "three" } == 1)
@@ -103,10 +103,10 @@ assert(p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" },
 
 print("+")
 
-p = m.L(m.I"one" * m.C(m.I"two" * (m.I(m.L(m.I("foo" * m.P("bar")^0) * 
-					       m.I"bar")) +
-				       m.I(m.L(m.I"baz" * m.I"boo")))^0)
-      * m.I"three")
+p = m.L"one" * m.C(m.L"two" * (m.L(m.L("foo" * m.P("bar")^0) * 
+					       m.L"bar") +
+				       m.L(m.L"baz" * m.L"boo"))^0)
+      * m.L"three"
 
 assert(p:match{ "one", "two", "three" }[1] == "two")
 assert(#p:match{ "one", "two", "three" } == 1)
@@ -119,6 +119,8 @@ assert(#p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
 		   "three" } == 3)
 
 print("+")
+
+--[====[
 
 re = require "re"
 
@@ -328,5 +330,6 @@ assert(tinyhtmld:match(boringfier:match(tree)) == boringfied)
 
 print("+")
 
-print("OK")
+]====]
 
+print("OK")
