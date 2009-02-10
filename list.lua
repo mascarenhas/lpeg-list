@@ -1,4 +1,4 @@
-m = require "lpeg"
+m = require "listlpeg"
 
 local function table_print (tt, indent, done)
   done = done or {}

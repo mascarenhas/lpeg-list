@@ -1,11 +1,11 @@
 -- $Id: re.lua,v 1.32 2008/10/09 20:25:06 roberto Exp $
 
-local m = require"lpeg"
+local m = require"listlpeg"
 local _G = _G
 local tonumber, type, print, error = tonumber, type, print, error
 local mt = getmetatable(m.P(0))
 
-module "re"
+module "listlpeg.re"
 
 local any = m.P(1)
 

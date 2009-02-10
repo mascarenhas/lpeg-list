@@ -1,5 +1,3 @@
-LUADIR = /usr/include/lua5.1/
-
 COPT = -O2 -DNDEBUG
 
 CWARNS = -Wall -Wextra -pedantic \
@@ -20,14 +18,17 @@ CWARNS = -Wall -Wextra -pedantic \
 	#  -Wunreachable-code \
 
 
-CFLAGS = $(CWARNS) $(COPT) -ansi -I$(LUADIR)
-DLLFLAGS = -shared
-CC = gcc
+CFLAGS = $(CWARNS) $(COPT) -ansi
 
-lpeg.so: lpeg.o
-	$(CC) $(DLLFLAGS) lpeg.o -o lpeg.so
+listlpeg.so: lpeg.c
+	luarocks make listlpeg-scm-1.rockspec
 
-lpeg.o:	makefile lpeg.c
+test: test.lua list.lua listlpeg.so
+	lua -l luarocks.require test.lua
+	lua -l luarocks.require list.lua
 
-test: test.lua re.lua lpeg.so
-	test.lua
+dist:
+	git archive --format=tar --prefix=listlpeg-scm/ HEAD | gzip > listlpeg-scm.tar.gz
+
+clean:
+	rm listlpeg.so lpeg.o

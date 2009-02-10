@@ -2,7 +2,7 @@
 
 -- $Id: test.lua,v 1.70 2008/10/09 20:16:45 roberto Exp $
 
-local m = require"lpeg"
+local m = require"listlpeg"
 
 any = m.P(1)
 space = m.S" \t\n"^0
@@ -696,13 +696,13 @@ badgrammar({[1] = -m.P("a") * m.V(1)}, "rule '1'")
 badgrammar({[1] = -1 * m.V(1)}, "rule '1'")
 badgrammar({[1] = 1 * m.V(2), [2] = m.V(2)}, "rule '2'")
 badgrammar({[1] = m.P(0), [2] = 1 * m.V(1)^0}, "loop in rule '2'")
-badgrammar({ lpeg.V(2), lpeg.V(3)^0, lpeg.P"" }, "rule '2'")
-badgrammar({ lpeg.V(2) * lpeg.V(3)^0, lpeg.V(3)^0, lpeg.P"" }, "rule '1'")
-badgrammar({ #(lpeg.V(1) * 'a') }, "rule '1'")
-badgrammar({ -(lpeg.V(1) * 'a') }, "rule '1'")
+badgrammar({ m.V(2), m.V(3)^0, m.P"" }, "rule '2'")
+badgrammar({ m.V(2) * m.V(3)^0, m.V(3)^0, m.P"" }, "rule '1'")
+badgrammar({ #(m.V(1) * 'a') }, "rule '1'")
+badgrammar({ -(m.V(1) * 'a') }, "rule '1'")
 
-assert(m.match({'a' * -lpeg.V(1)}, "aaa") == 2)
-assert(m.match({'a' * -lpeg.V(1)}, "aaaa") == nil)
+assert(m.match({'a' * -m.V(1)}, "aaa") == 2)
+assert(m.match({'a' * -m.V(1)}, "aaaa") == nil)
 
 -- simple tests for maximum sizes:
 local p = m.P"a"
@@ -831,7 +831,7 @@ assert(not c:match'[[]=]====]=]=]==]===[]')
 -- Tests for 're' module
 -------------------------------------------------------------------
 
-require "re"
+re = require "listlpeg.re"
 
 local match, compile = re.match, re.compile
 
