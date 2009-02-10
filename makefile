@@ -23,7 +23,7 @@ CFLAGS = $(CWARNS) $(COPT) -ansi
 listlpeg.so: lpeg.c
 	luarocks make listlpeg-scm-1.rockspec
 
-test: test.lua list.lua listlpeg.so
+test: test.lua list.lua
 	lua -l luarocks.require test.lua
 	lua -l luarocks.require list.lua
 
