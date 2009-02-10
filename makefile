@@ -29,6 +29,7 @@ test: test.lua list.lua
 
 dist:
 	git archive --format=tar --prefix=listlpeg-scm/ HEAD | gzip > listlpeg-scm.tar.gz
+	scp listlpeg-scm.tar.gz mascarenhas@139.82.100.4:public_html/
 
 clean:
 	rm listlpeg.so lpeg.o
