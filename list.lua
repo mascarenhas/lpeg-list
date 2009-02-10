@@ -354,4 +354,51 @@ assert(p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }} == "foo")
 
 print("+")
 
+ops = { add = function (x, y) return x + y end,
+	sub = function (x, y) return x - y end,
+	mul = function (x, y) return x * y end,
+	div = function (x, y) return x / y end, }
+
+p = re.compile([[ exp <- { . -> '%0', <exp>, <exp> } -> eval / { "num", <.> } ]], 
+	       { eval = function (op, x, y) 
+			  return ops[op](x, y)
+			end })
+
+assert(p:match{{ "add", { "div", { "num", 8 }, { "num", 2 } }, { "num", 3 } }} == 7)
+
+print("+")
+
+p = re.compile([[ exp <- { <.> -> '%1', <exp>, <exp> } -> eval / { "num", <.> } ]], 
+	       { eval = function (op, x, y) 
+			  return ops[op](x, y)
+			end })
+
+assert(p:match{{ "add", { "div", { "num", 8 }, { "num", 2 } }, { "num", 3 } }} == 7)
+
+print("+")
+
+p = re.compile([[ { "foo", <~ "bar", (!"baz" .)*, "baz" -> 'foo' ~>, "boo" } ]])
+
+assert(select(5, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }}) == "foo")
+assert(#p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }} == 5)
+
+print("+")
+
+p = re.compile([[ { "foo", <~ "bar", (!"baz" .)*, "baz" -> 'foo', "boo", "biz" ~>, "zoo" } ]])
+
+assert(select(5, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }}) == "foo")
+assert(#p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }} == 7)
+assert(select(6, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }}) == "boo")
+
+print("+")
+
+p = re.compile([[ { "foo", <~ "bar", (!"baz" .)*, "baz" -> upper, "boo", "biz" ~>, "zoo" } ]],
+	       { upper = string.upper })
+
+assert(select(5, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }}) == "BAZ")
+assert(#p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }} == 7)
+assert(select(6, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }}) == "boo")
+
+print("+")
+
 print("OK")

@@ -808,10 +808,12 @@ static Stream *match (lua_State *L,
 
 static int verify (lua_State *L, Instruction *op, const Instruction *p,
                    Instruction *e, int postable, int rule) {
-  Stream dummy;
+  Stream dummy_s;
+  Stream dummy_l;
   Stack back[MAXBACK];
   int backtop = 0;  /* point to first empty slot in back */
-  dummy.kind = Sstring;
+  dummy_s.kind = Sstring;
+  dummy_l.kind = Slist;
   while (p != e) {
     switch ((Opcode)p->i.code) {
       case IRet: {
@@ -822,9 +824,18 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         if (backtop >= MAXBACK)
           return luaL_error(L, "too many pending calls/choices");
         back[backtop].p = dest(0, p);
-        back[backtop++].s = dummy;
+        back[backtop++].s = dummy_s;
         p++;
         continue;
+      }
+      case IOpen:
+      {
+        if (backtop >= MAXBACK)
+          return luaL_error(L, "too many pending calls/choices");
+	back[backtop].p = NULL;
+	back[backtop++].s = dummy_l;
+	p++;
+	continue;
       }
       case ICall: {
         assert((p + 1)->i.code != IRet);  /* no tail call */
@@ -865,9 +876,11 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
           continue;
         }
       }
-      case IOpen:
       case IClose:
       {
+	assert(backtop > 0);
+	backtop--;
+	assert(back[backtop].s.kind == Slist);
 	p++;
 	continue;
       }
@@ -895,7 +908,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         do {
           if (backtop-- == 0)
             return 1;  /* no more backtracking */
-        } while (back[backtop].s.kind == Sempty);
+        } while (back[backtop].s.kind == Sempty || back[backtop].p == NULL);
         p = back[backtop].p;
         continue;
       }
@@ -910,7 +923,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         goto fail;  /* be liberal in this case */
       }
       case IFunc: {
-        Stream *r = (p+1)->f((p+2)->buff, &dummy);
+        Stream *r = (p+1)->f((p+2)->buff, &dummy_s);
         if (r == NULL) goto fail;
         p += p->i.offset;
         continue;
@@ -2205,8 +2218,21 @@ typedef struct StrAux {
 
 static int getstrcaps (CapState *cs, StrAux *cps, int n) {
   int k = n++;
+  int skind = cs->cap->s.kind;
   cps[k].isstring = 1;
-  cps[k].u.s.s = cs->cap->s.u.s.s;
+  switch(skind) {
+    case Sstring: cps[k].u.s.s = cs->cap->s.u.s.s; break;
+    case Slist: {
+      size_t l;
+      lua_rawgeti(cs->L, plistidx(cs->ptop), cs->cap->s.u.l.ref);
+      lua_rawgeti(cs->L, -1, cs->cap->s.u.l.cur);
+      cps[k].u.s.s = lua_tolstring(cs->L, -1, &l);
+      cps[k].u.s.e = cps[k].u.s.s + l;
+      lua_pop(cs->L, 2);
+      break;
+    }
+    default: luaL_error(cs->L, "no string captures for this stream");
+  }
   if (!isfullcap(cs->cap++)) {
     while (!isclosecap(cs->cap)) {
       if (n >= MAXSTRCAPS)  /* too many captures? */
@@ -2222,7 +2248,7 @@ static int getstrcaps (CapState *cs, StrAux *cps, int n) {
     }
     cs->cap++;  /* skip close */
   }
-  cps[k].u.s.e = closeaddr(cs->cap - 1);
+  if(skind == Sstring) cps[k].u.s.e = closeaddr(cs->cap - 1);
   return n;
 }
 
@@ -2231,6 +2257,11 @@ static int getstrcaps (CapState *cs, StrAux *cps, int n) {
 ** add next capture (which should be a string) to buffer
 */
 static int addonestring (luaL_Buffer *b, CapState *cs, const char *what);
+
+/*
+** push next capture
+*/
+static int pushoneitem (int tab, CapState *cs, const char *what);
 
 
 static void stringcap (luaL_Buffer *b, CapState *cs) {
@@ -2261,22 +2292,67 @@ static void stringcap (luaL_Buffer *b, CapState *cs) {
   }
 }
 
+typedef struct SubstAux {
+  union {
+    luaL_Buffer *b;
+    int tab;
+  } u;
+} SubstAux;
 
-static void substcap (luaL_Buffer *b, CapState *cs) {
-  const char *curr = cs->cap->s.u.s.s;
-  if (isfullcap(cs->cap))  /* no nested captures? */
-    luaL_addlstring(b, curr, cs->cap->siz - 1);  /* keep original text */
-  else {
-    cs->cap++;
-    while (!isclosecap(cs->cap)) {
-      const char *next = cs->cap->s.u.s.s;
-      luaL_addlstring(b, curr, next - curr);  /* add text up to capture */
-      if (addonestring(b, cs, "replacement") == 0)  /* no capture value? */
-        curr = next;  /* keep original text in final result */
-      else
-        curr = closeaddr(cs->cap - 1);  /* continue after match */
+static void substcap (SubstAux *sa, CapState *cs) {
+  switch(cs->cap->s.kind) {
+    case Sstring: {
+      luaL_Buffer *b = sa->u.b;
+      const char *curr = cs->cap->s.u.s.s;
+      if (isfullcap(cs->cap))  /* no nested captures? */
+	luaL_addlstring(b, curr, cs->cap->siz - 1);  /* keep original text */
+      else {
+	cs->cap++;
+	while (!isclosecap(cs->cap)) {
+	  const char *next = cs->cap->s.u.s.s;
+	  luaL_addlstring(b, curr, next - curr);  /* add text up to capture */
+	  if (addonestring(b, cs, "replacement") == 0)  /* no capture value? */
+	    curr = next;  /* keep original text in final result */
+	  else
+	    curr = closeaddr(cs->cap - 1);  /* continue after match */
+	}
+	luaL_addlstring(b, curr, cs->cap->s.u.s.s - curr);  /* add last piece of text */
+      }
+      break;
     }
-    luaL_addlstring(b, curr, cs->cap->s.u.s.s - curr);  /* add last piece of text */
+    case Slist: {
+      int tabidx = sa->u.tab;
+      int last = lua_objlen(cs->L, tabidx);
+      int curr = cs->cap->s.u.l.cur;
+      if (isfullcap(cs->cap)) {  /* no nested captures?  keep original */
+	lua_rawgeti(cs->L, plistidx(cs->ptop), cs->cap->s.u.l.ref);
+	lua_rawgeti(cs->L, -1, cs->cap->s.u.l.cur);
+	lua_rawseti(cs->L, tabidx, ++last);
+	lua_pop(cs->L, 1);
+      } else {
+	cs->cap++;
+	lua_rawgeti(cs->L, plistidx(cs->ptop), cs->cap->s.u.l.ref);
+	while (!isclosecap(cs->cap)) {
+	  int next = cs->cap->s.u.l.cur;
+	  for(; curr < next; curr++) { /* add items up to capture */
+	    lua_rawgeti(cs->L, -1, curr);
+	    lua_rawseti(cs->L, tabidx, ++last);
+	  }
+	  if (pushoneitem(tabidx, cs, "replacement") == 0) /* no capture value? */
+	    curr = next;
+	  else {
+	    lua_rawseti(cs->L, tabidx, ++last);
+	    curr = (cs->cap-1)->s.u.l.cur + 1;
+	  }
+	}
+	for(; curr < cs->cap->s.u.l.cur; curr++) {
+	  lua_rawgeti(cs->L, -1, curr);
+	  lua_rawseti(cs->L, tabidx, ++last);
+	}
+	lua_pop(cs->L, 1);
+      }
+      break;
+    }
   }
   cs->cap++;  /* go to next capture */
 }
@@ -2287,9 +2363,12 @@ static int addonestring (luaL_Buffer *b, CapState *cs, const char *what) {
     case Cstring:
       stringcap(b, cs);  /* add capture directly to buffer */
       return 1;
-    case Csubst:
-      substcap(b, cs);  /* add capture directly to buffer */
+    case Csubst: {
+      SubstAux sa; 
+      sa.u.b = b;
+      substcap(&sa, cs);  /* add capture directly to buffer */
       return 1;
+    }
     default: {
       lua_State *L = cs->L;
       int n = pushcapture(cs);
@@ -2299,6 +2378,29 @@ static int addonestring (luaL_Buffer *b, CapState *cs, const char *what) {
           luaL_error(L, "invalid %s value (a %s)", what, luaL_typename(L, -1));
         luaL_addvalue(b);
       }
+      return n;
+    }
+  }
+}
+
+static int pushoneitem (int tab, CapState *cs, const char *what) {
+  switch (captype(cs->cap)) {
+    case Cstring: {
+      luaL_Buffer b;
+      luaL_buffinit(cs->L, &b);
+      stringcap(&b, cs);  /* add capture directly to buffer */
+      luaL_pushresult(&b);
+      return 1;
+    }
+    case Csubst: {
+      SubstAux sa; sa.u.tab = tab;
+      substcap(&sa, cs);  /* add capture directly to buffer */
+      return 1;
+    }
+    default: {
+      lua_State *L = cs->L;
+      int n = pushcapture(cs);
+      if(n > 1) lua_pop(L, n - 1);
       return n;
     }
   }
@@ -2348,10 +2450,24 @@ static int pushcapture (CapState *cs) {
       return 1;
     }
     case Csubst: {
-      luaL_Buffer b;
-      luaL_buffinit(cs->L, &b);
-      substcap(&b, cs);
-      luaL_pushresult(&b);
+      switch(cs->cap->s.kind) {
+        case Sstring: {
+	  SubstAux sa;
+	  luaL_Buffer b;
+	  luaL_buffinit(cs->L, &b);
+	  sa.u.b = &b;
+	  substcap(&sa, cs);
+	  luaL_pushresult(&b);
+	  break;
+	}
+        case Slist: {
+	  SubstAux sa;
+	  lua_newtable(cs->L);
+	  sa.u.tab = lua_gettop(cs->L);
+	  substcap(&sa, cs);
+	  break;
+	}
+      }
       return 1;
     }
     case Cgroup: {

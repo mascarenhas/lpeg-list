@@ -7,13 +7,12 @@ of items. This means that the pattern "abc" matches both the string
 "abc" and the list { "a", "b", "c" }. The special thing about lists is
 that its items can themselves be streams (other lists or strings).
 
-Simple captures in lists are working, the examples below show how they
-operate (produce the empty list, the single captured element, or a sublist),
-but substitution and dynamic captures are not supported on lists yet.
-
-Oh, and the verifier just validates both new opcodes without checking anything,
-I am going to add proper validation later. The compiler is generating correct code
-so this is not such a big deal right now. :-)
+List captures are working, the examples below show how they
+operate (produce the empty list, the single captured element, or a sublist).
+Substitution captures on a list slice produce a list with replaced elements,
+dynamic captures receive the list being matched and the current position, and
+must return the next position to match as first result (or true to keep in the
+same place).
 
 It's backward compatible with LPEG 0.9, but I have a new RE module called listre
 that has a more list-friendly syntax, although I am not happy with its syntax yet,

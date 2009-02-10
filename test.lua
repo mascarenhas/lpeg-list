@@ -479,7 +479,6 @@ assert(m.match(m.Cmt(m.Cg(m.Carg(3), "a") *
                                 end) * "a",
                "a", 1, false, 100, 1000) == 2*1001 + 3*100)
 
-
 -- tests for Lua functions
 
 t = {}
@@ -704,7 +703,6 @@ badgrammar({ -(lpeg.V(1) * 'a') }, "rule '1'")
 
 assert(m.match({'a' * -lpeg.V(1)}, "aaa") == 2)
 assert(m.match({'a' * -lpeg.V(1)}, "aaaa") == nil)
-
 
 -- simple tests for maximum sizes:
 local p = m.P"a"
