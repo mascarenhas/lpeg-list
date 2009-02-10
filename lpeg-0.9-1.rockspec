@@ -24,6 +24,7 @@ build = {
    type = "module",
    modules = {
       lpeg = "lpeg.c",
-      re = "re.lua"
+      re = "re.lua",
+      listre = "listre.lua"
    }
 }

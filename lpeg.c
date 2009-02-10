@@ -599,7 +599,6 @@ static Stream *match (lua_State *L,
 	    assert(lua_istable(L, -1) && stack > stackbase && 
 		   (stack - 1)->p == NULL);
 	    lua_rawgeti(L, -1, s->u.l.cur);
-	    luaL_unref(L, plistidx(ptop), s->u.l.ref);
 	    if(!lua_isnil(L, -1)) {
 	      condfailed(p);
 	    } else {
@@ -673,8 +672,6 @@ static Stream *match (lua_State *L,
         do {  /* remove pending calls/lists */
           assert(stack > stackbase);
 	  --stack;
-	  if(stack->p == NULL && s->kind == Slist) 
-	    luaL_unref(L, plistidx(ptop), s->u.l.ref);
 	  *s = stack->s;
         } while (s->kind == Sempty || stack->p == NULL);
 	captop = stack->caplevel;
@@ -730,7 +727,7 @@ static Stream *match (lua_State *L,
 	    break;
 	  }
 	  case Slist: {
-	    int cur1 = s->u.l.cur - getoff(p) - 1;
+	    int cur1 = s->u.l.cur - getoff(p);
 	    assert(captop > 0);
 	    if (capture[captop - 1].siz == 0 &&
 		cur1 - capture[captop - 1].s.u.l.cur < UCHAR_MAX) {
@@ -1951,23 +1948,29 @@ typedef struct CapState {
 #define getfromenv(cs,v)	lua_rawgeti((cs)->L, penvidx((cs)->ptop), v)
 #define pushluaval(cs)		getfromenv(cs, (cs)->cap->idx)
 
-#define pushsubject(cs, c) { if((c)->s.kind == Sstring) lua_pushlstring((cs)->L, (c)->s.u.s.s, (c)->siz - 1); else if((c)->s.kind == Slist) pushitems((cs), (c), (c)->siz); else luaL_error((cs)->L, "invalid stream type"); }
+#define pushsubject(cs, c) { if((c)->s.kind == Sstring) lua_pushlstring((cs)->L, (c)->s.u.s.s, (c)->siz - 1); else if((c)->s.kind == Slist) pushitems((cs), (c), (c)->siz-1); else luaL_error((cs)->L, "invalid stream type"); }
 
-#define pushmatch(cs, c1, c2) { if((c1)->s.kind == Sstring) lua_pushlstring((cs)->L, (c1)->s.u.s.s, (c2)->s.u.s.s - (c1)->s.u.s.s); else if((c1)->s.kind == Slist) pushitems((cs), (c1), (c2)->s.u.l.cur - (c1)->s.u.l.cur + 1); else luaL_error((cs)->L, "invalid stream type"); }
+#define pushmatch(cs, c1, c2) { if((c1)->s.kind == Sstring) lua_pushlstring((cs)->L, (c1)->s.u.s.s, (c2)->s.u.s.s - (c1)->s.u.s.s); else if((c1)->s.kind == Slist) pushitems((cs), (c1), (c2)->s.u.l.cur - (c1)->s.u.l.cur); else luaL_error((cs)->L, "invalid stream type"); }
 
 
 #define updatecache(cs,v) { if ((v) != (cs)->valuecached) updatecache_(cs,v); }
 
 
 static void pushitems (CapState *cs, Capture *c, int n) {
-  int i;
-  lua_createtable(cs->L, n, 0);
-  lua_rawgeti(cs->L, plistidx(cs->ptop), c->s.u.l.ref);
-  for(i = 1; i <= n; i++) {
-    lua_rawgeti(cs->L, -1, c->s.u.l.cur + i - 1);
-    lua_rawseti(cs->L, -3, i);
-  }
-  lua_pop(cs->L, 1);
+  if(n > 1) {
+    int i;
+    lua_createtable(cs->L, n, 0);
+    lua_rawgeti(cs->L, plistidx(cs->ptop), c->s.u.l.ref);
+    for(i = 1; i <= n; i++) {
+      lua_rawgeti(cs->L, -1, c->s.u.l.cur + i - 1);
+      lua_rawseti(cs->L, -3, i);
+    }
+    lua_pop(cs->L, 1);
+  } else if(n == 1) {
+    lua_rawgeti(cs->L, plistidx(cs->ptop), c->s.u.l.ref);
+    lua_rawgeti(cs->L, -1, c->s.u.l.cur);
+    lua_remove(cs->L, -2);
+  } else lua_newtable(cs->L);
 }
 
 static void updatecache_ (CapState *cs, int v) {

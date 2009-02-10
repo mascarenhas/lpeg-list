@@ -81,8 +81,7 @@ print("+")
 p = m.L"one" * m.C(m.L"two") * (m.L(m.L"foo" * m.L"bar") +
 			     m.L(m.L"baz" * m.L"boo"))^0 * m.L"three"
 
-assert(p:match{ "one", "two", "three" }[1] == "two")
-assert(#p:match{ "one", "two", "three" } == 1)
+assert(p:match{ "one", "two", "three" } == "two")
 assert(p:match{ "one", "two", { "foo", "bar" }, "three" })
 assert(p:match{ "one", "two", { "baz", "boo" }, "three" })
 assert(not p:match{ "one", "two", { "baz", "bar" }, "three" })
@@ -94,8 +93,7 @@ p = m.L"one" * m.C(m.L"two" * (m.L(m.L"foo" * m.L"bar") +
 				       m.L(m.L"baz" * m.L"boo"))^0)
       * m.L"three"
 
-assert(p:match{ "one", "two", "three" }[1] == "two")
-assert(#p:match{ "one", "two", "three" } == 1)
+assert(p:match{ "one", "two", "three" } == "two")
 assert(#p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" },
 		   "three" } == 3)
 assert(p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" },
@@ -108,8 +106,7 @@ p = m.L"one" * m.C(m.L"two" * (m.L(m.L("foo" * m.P("bar")^0) *
 				       m.L(m.L"baz" * m.L"boo"))^0)
       * m.L"three"
 
-assert(p:match{ "one", "two", "three" }[1] == "two")
-assert(#p:match{ "one", "two", "three" } == 1)
+assert(p:match{ "one", "two", "three" } == "two")
 assert(#p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" },
 		   "three" } == 3)
 local t = p:match{ "one", "two", { "foobarbarbar", "bar" }, { "baz", "boo" },
@@ -120,114 +117,114 @@ assert(#p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
 
 print("+")
 
---[====[
 
-re = require "re"
+re = require "listre"
 
-p = re.compile[[ {{ "one", {"two"}, "three" }} ]]
+p = re.compile[[ { "one", (<"two">), "three" } ]]
 
-assert(p:match{ "one" , "two" ,"three" })
+assert(p:match{ { "one" , "two" ,"three" } } == "two")
 
 print("+")
 
 p = re.compile[[
-    {{ "one", { "two", ({{ ("foo""bar"*), "bar" }} / {{ "baz", "boo" }})* },
-     "three" }}
+      { "one", < "two", ({ ("foo""bar"*), "bar" } / { "baz", "boo" })* > ,
+     "three" }
 ]]
 
-assert(p:match{ "one", "two", "three" }[1] == "two")
-assert(#p:match{ "one", "two", "three" } == 1)
-assert(#p:match{ "one", "two", { "foo", "bar" }, { "baz", "boo" }, "three" } == 3)
-local t = p:match{ "one", "two", { "foobarbarbar", "bar" }, { "baz", "boo" },
-		"three" }
+
+assert(p:match{{ "one", "two", "three" }} == "two")
+assert(#p:match{{ "one", "two", { "foo", "bar" }, { "baz", "boo" }, "three" }} == 3)
+local t = p:match{{ "one", "two", { "foobarbarbar", "bar" }, { "baz", "boo" },
+		   "three" }}
 assert(t[2][1] == "foobarbarbar")
-assert(#p:match{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
-		   "three" } == 3)
+assert(#p:match{{ "one", "two", { "foobarbar", "bar" }, { "baz", "boo" },
+		  "three" }} == 3)
 
 print("+")
 
-p = re.compile([[ {{ "add", ({.+}), ({.+}) }} -> add ]], { add = function (x, y)
-								    return x+y
-								 end })
-assert(p:match{ "add", 2, 3 })
-assert(p:match{ "add", 72, 3 } == 75)
-assert(p:match{ "add", 72.5, 3 } == 75.5)
-assert(not p:match{ "sub", 72, 3 })
-assert(not p:match{ "add", 3 })
+p = re.compile([[ { "add", <.>, <.> } -> add ]], { add = function (x, y)
+								return x+y
+							     end })
+
+assert(p:match{{ "add", 2, 3 }})
+assert(p:match{{ "add", 72, 3 }} == 75)
+assert(p:match{{ "add", 72.5, 3 }} == 75.5)
+assert(not p:match{{ "sub", 72, 3 }})
+assert(not p:match{{ "add", 3 }})
 
 print("+")
 
-p = re.compile[[ {{ "foo", { "bar", (!"baz" .+)*, "baz" }, "boo" }} ]]
+p = re.compile[[ { "foo", < "bar", (!""baz"" .)*, "baz" >, "boo" } ]]
 
-assert(select(4, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "three")
-assert(#p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" } == 5)
-assert(select(5, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "baz")
-assert(select(2, p:match{ "foo", "bar", "baz", "boo" }) == "baz")
-assert(#p:match{ "foo", "bar", "baz", "boo" } == 2)
+assert(select(4, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }}) == "three")
+assert(#p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }} == 5)
+assert(select(5, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }}) == "baz")
+assert(select(2, p:match{{ "foo", "bar", "baz", "boo" }}) == "baz")
+assert(#p:match{{ "foo", "bar", "baz", "boo" }} == 2)
 
 print("+")
 
-p = re.compile[[ {{ "foo", "bar", { (!"baz" .+)* }, "baz" , "boo" }} ]]
+p = re.compile[[ { "foo", "bar", < (!""baz"" .)* >, "baz" , "boo" } ]]
 
-assert(#p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" } == 3)
-assert(select(3, p:match{ "foo", "bar", "one", "two", "three", "baz", "boo" }) == "three")
-assert(#p:match{ "foo", "bar", "baz", "boo" } == 0)
+assert(#p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }} == 3)
+assert(select(3, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }}) == "three")
+assert(#p:match{{ "foo", "bar", "baz", "boo" }} == 0)
 
 print("+")
 
 p = re.compile([[
-	       exp <- {{ "add", <exp>, <exp> }} -> add
-                    / {{ "sub", <exp>, <exp> }} -> sub
-		    / {{ "mul", <exp>, <exp> }} -> mul
-		    / {{ "div", <exp>, <exp> }} -> div
-		    / {.}
+	       exp <- { "add", <exp>, <exp> } -> add
+                    / { "sub", <exp>, <exp> } -> sub
+		    / { "mul", <exp>, <exp> } -> mul
+		    / { "div", <exp>, <exp> } -> div
+		    / <.>
     ]], { add = function (x, y) return x + y end, 
           sub = function (x, y) return x - y end,
           mul = function (x, y) return x * y end,
           div = function (x, y) return x / y end, })
 
-assert(p:match{ "add", { "div", 8, 2 }, 3 } == 7)
-assert(p:match{ "sub", { "div", 8, { "add", 2, 2 } }, 3 } == -1)
+assert(p:match{{ "add", { "div", 8, 2 }, 3 }} == 7)
+assert(p:match{{ "sub", { "div", 8, { "add", 2, 2 } }, 3 }} == -1)
 
 print("+")
 
-p = re.compile([[ exp <- {{ (.+ -> ops), <exp>, <exp> }} -> eval / {{ "num", ({.}) }} ]], 
+p = re.compile([[ exp <- { (.+ -> ops), <exp>, <exp> } -> eval / { "num", <.> } ]], 
 	       { ops = { add = function (x, y) return x + y end, 
                          sub = function (x, y) return x - y end,
                          mul = function (x, y) return x * y end,
                          div = function (x, y) return x / y end, },
                  eval = function (op, x, y) return op(x, y) end })
 
-assert(p:match{ "add", { "div", { "num", 8 }, { "num", 2 } }, { "num", 3 }} == 7)
-assert(p:match{ "sub", { "div", { "num", 8 }, { "add", { "num", 2 }, { "num", 2 } } }, 
-		{ "num", 3  } } == -1)
+assert(p:match{{ "add", { "div", { "num", 8 }, { "num", 2 } }, { "num", 3 } }} == 7)
+assert(p:match{{ "sub", { "div", { "num", 8 }, { "add", { "num", 2 }, { "num", 2 } } }, 
+		{ "num", 3  } }} == -1)
 
 print("+")
 
 local S = m.S(" \n\t")^0
 
 parser = re.compile([[
-  exp <- <add>
-  add <- (<mul>:x <aop>:op <add>:y) -> { op, x, y } / <mul>
+  exp <- (<mul>:x <aop>:op <exp>:y) -> { op, x, y } / <mul>
   mul <- (<prim>:x <mop>:op <mul>:y) -> { op, x, y } / <prim>
-  prim <- ( `( <exp> `) ) / (%num):n -> { "num", n }
+  prim <- ( `( <exp> `) ) / <num>:n -> { "num", n }
   aop <- (`+ -> "add") / (`- -> "sub")
   mop <- (`* -> "mul") / (`/ -> "div")
-]], { num = S * (m.C(m.P"-"^-1 * m.R("09")^1) / tonumber) * S })
+]], { num = S * (m.C(m.P"-"^-1 * m.R("09")^1) / tonumber) * S,
+      id = function (x) return x end })
 
-assert(p:match(parser:match("8/2+3")) == 7)
-assert(p:match(parser:match("8 / (2 + 2) - 3")) == -1)
+assert(p:match{parser:match("8/2+3")} == 7)
+assert(p:match{parser:match("8 / (2 + 2) - 3")} == -1)
 
 print("+")
 
 tinyhtmlp = re.compile([[
   html <- (<tag> / <text>)* -> {}
-  name <- {[0-9a-zA-Z_-]+}
-  tag <- (%s "<" %s {:n:<name>:} %s {:attrs: (<attribute>* ->{}) :} ">" %s 
+  name <- <[0-9a-zA-Z_-]+>
+  tag <- (%s "<" %s <name>:n %s <:attrs: (<attribute>*->{}) :> ">" %s 
     <html>:c %s "</" %s =n %s ">") -> {n, attrs, c}
-  text <- {(!'<' .)+}
+  text <- <(!'<' .)+>
   attribute <- (%s <name>:k `= <quotedString>:v %s) -> {k, v}
-  quotedString <- ('"' / "'"):q {(!=q .)*} =q
+  quotedString <- <:q: '"' / "'" :> <(!=q .)*> =q
 ]], { s = S })
 
 tree = tinyhtmlp:match([[
@@ -247,8 +244,8 @@ assert(tree)
 print("+")
 
 tinyhtmld = re.compile([[
-  contents <- {{ <tag>* }} -> {} -> concat
-  tag <- {{ ({.+}), ({.} -> formatattrs), <contents> }} -> ptag / {.+}
+  contents <- { <tag>* } -> {} -> concat
+  tag <- { <.>, (<.>) -> formatattrs, <contents> } -> ptag / {<.+>}
 ]], { concat = table.concat, 
       ptag = function(n, attrs, c)
 		return  string.format("<%s %s>%s</%s>", n, 
@@ -269,7 +266,7 @@ dump = [[<html ><title >Yes</title><body ><h1 >Man, HTML is
  </html>
 ]]
 
-assert(tinyhtmld:match(tree) == dump)
+assert(tinyhtmld:match{tree} == dump)
 
 print("+")
 
@@ -287,17 +284,17 @@ local function flatten(t)
 end
 
 linkextract = re.compile([[
-  contents <- {{ <tag>* }} -> {} -> flatten
-  tag <- {{ "a", <href>, <contents> }} -> cons
-         / {{ "img", <src>, <contents> }} -> cons
-         / {{ (.+), (.), <contents> }} 
-         / .+ -> nothing
-  href <- {{ {{ (!"href" .+), (.+) }}*,
-	     {{ "href", ({.+}) }},
-             {{ (!"href" .+), (.+) }}* }}
-  src <- {{ {{ (!"src" .+), (.+) }}*,
-	    {{ "src", ({.+}) }},
-            {{ (!"src" .+), (.+) }}* }}
+  contents <- { <tag>* } -> {} -> flatten
+  tag <- { "a", <href>, <contents> } -> cons
+         / { "img", <src>, <contents> } -> cons
+         / { ., ., <contents> } 
+         / {.+} -> nothing
+  href <- { { (!"href" .+), . }*,
+	    { "href", (<.+>) },
+            { (!"href" .+), . }* }
+  src <- { { (!"src" .+), . }*,
+	   { "src", (<.+>) },
+           { (!"src" .+), . }* }
 ]], { cons = function (s, t)
 		table.insert(t, 1, s) 
 		return t 
@@ -305,18 +302,18 @@ linkextract = re.compile([[
       flatten = flatten,
       nothing = function () return nil end })
 
-assert(#linkextract:match(tree) == 2)
-assert(linkextract:match(tree)[1] == "HIPPO.JPG")
-assert(linkextract:match(tree)[2] == "http://twistedmatrix.com")
+assert(#linkextract:match{tree} == 2)
+assert(linkextract:match{tree}[1] == "HIPPO.JPG")
+assert(linkextract:match{tree}[2] == "http://twistedmatrix.com")
 
 print("+")
 
 boringfier = re.compile([[
-  contents <- {{ <tag>* }} -> {}
-  tag <-  {{ "b", (.), <contents> }} -> unpack 
-          / {{ "i", (.), <contents> }} -> unpack
-          / {{ ((.+):n), ((.):a), (<contents>:c) }} -> {n, a, c} 
-          / {.+}
+  contents <- { <tag>* } -> {}
+  tag <-  { "b", ., <contents> } -> unpack 
+          / { "i", ., <contents> } -> unpack
+          / { <:n: .:>, <:a: .:>, <contents>:c } -> {n, a, c} 
+          / {<.+>}
  ]], { unpack = unpack })
 
 boringfied = [[<html ><title >Yes</title><body ><h1 >Man, HTML is
@@ -326,10 +323,8 @@ boringfied = [[<html ><title >Yes</title><body ><h1 >Man, HTML is
  </html>
 ]]
 
-assert(tinyhtmld:match(boringfier:match(tree)) == boringfied)
+assert(tinyhtmld:match{boringfier:match{tree}} == boringfied)
 
 print("+")
-
-]====]
 
 print("OK")
