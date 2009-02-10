@@ -244,12 +244,12 @@ assert(tree)
 print("+")
 
 tinyhtmld = re.compile([[
-  html <- { <tag>* } -> {} -> concat
-  tag <- { <.>, . -> formatattrs, <html> } -> ptag / <.>
+  html <- { <~ <tag>* ~> } -> concat
+  tag <- { <~ <.>, . -> formatattrs, <html> ~> } -> ptag / <.>
 ]], { concat = table.concat, 
-      ptag = function(n, attrs, c)
-		return  string.format("<%s %s>%s</%s>", n, 
-				      attrs, c, n)
+      ptag = function(tag)
+	       return  string.format("<%s %s>%s</%s>", tag[1], 
+				     tag[2], tag[3], tag[1])
 	     end,
       formatattrs = function(attrs) 
 		       local t = {}
@@ -305,13 +305,12 @@ assert(linkextract:match{tree}[2] == "http://twistedmatrix.com")
 print("+")
 
 boringfier = re.compile([[
-  html <- <contents> -> {}
-  contents <- { <tag>* }
-  tag <-  { "b", ., <contents> }
-          / { "i", ., <contents> }
-          / { .:n, .:a, <html>:c } -> {n, a, c} 
+  contents <- { <~ <tag>* ~> }
+  tag <-  { "b", ., <contents> } -> unpack
+          / { "i", ., <contents> } -> unpack
+          / { .:n, .:a, <contents>:c } -> {n, a, c} 
           / <.>
- ]])
+]], { unpack = unpack })
 
 boringfied = [[<html ><title >Yes</title><body ><h1 >Man, HTML is
  great.</h1><p >How could you even think 
