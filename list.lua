@@ -120,14 +120,14 @@ print("+")
 
 re = require "listre"
 
-p = re.compile[[ { "one", (<"two">), "three" } ]]
+p = re.compile[[ { "one", <"two">, "three" } ]]
 
 assert(p:match{ { "one" , "two" ,"three" } } == "two")
 
 print("+")
 
 p = re.compile[[
-      { "one", < "two", ({ ("foo""bar"*), "bar" } / { "baz", "boo" })* > ,
+      { "one", < "two", ({ {'foo''bar'*}, "bar" } / { "baz", "boo" })* > ,
      "three" }
 ]]
 
@@ -154,7 +154,7 @@ assert(not p:match{{ "add", 3 }})
 
 print("+")
 
-p = re.compile[[ { "foo", < "bar", (!""baz"" .)*, "baz" >, "boo" } ]]
+p = re.compile[[ { "foo", < "bar", (!"baz" .)*, "baz" >, "boo" } ]]
 
 assert(select(4, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }}) == "three")
 assert(#p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }} == 5)
@@ -164,7 +164,7 @@ assert(#p:match{{ "foo", "bar", "baz", "boo" }} == 2)
 
 print("+")
 
-p = re.compile[[ { "foo", "bar", < (!""baz"" .)* >, "baz" , "boo" } ]]
+p = re.compile[[ { "foo", "bar", < (!"baz" .)* >, "baz" , "boo" } ]]
 
 assert(#p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }} == 3)
 assert(select(3, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }}) == "three")
@@ -188,7 +188,7 @@ assert(p:match{{ "sub", { "div", 8, { "add", 2, 2 } }, 3 }} == -1)
 
 print("+")
 
-p = re.compile([[ exp <- { (.+ -> ops), <exp>, <exp> } -> eval / { "num", <.> } ]], 
+p = re.compile([[ exp <- { . -> ops, <exp>, <exp> } -> eval / { "num", <.> } ]], 
 	       { ops = { add = function (x, y) return x + y end, 
                          sub = function (x, y) return x - y end,
                          mul = function (x, y) return x * y end,
@@ -206,9 +206,9 @@ local S = m.S(" \n\t")^0
 parser = re.compile([[
   exp <- (<mul>:x <aop>:op <exp>:y) -> { op, x, y } / <mul>
   mul <- (<prim>:x <mop>:op <mul>:y) -> { op, x, y } / <prim>
-  prim <- ( `( <exp> `) ) / <num>:n -> { "num", n }
-  aop <- (`+ -> "add") / (`- -> "sub")
-  mop <- (`* -> "mul") / (`/ -> "div")
+  prim <- ( `( <exp> `) ) / <num>:n -> { 'num', n }
+  aop <- (`+ -> 'add') / (`- -> 'sub')
+  mop <- (`* -> 'mul') / (`/ -> 'div')
 ]], { num = S * (m.C(m.P"-"^-1 * m.R("09")^1) / tonumber) * S,
       id = function (x) return x end })
 
@@ -220,11 +220,11 @@ print("+")
 tinyhtmlp = re.compile([[
   html <- (<tag> / <text>)* -> {}
   name <- <[0-9a-zA-Z_-]+>
-  tag <- (%s "<" %s <name>:n %s <:attrs: (<attribute>*->{}) :> ">" %s 
-    <html>:c %s "</" %s =n %s ">") -> {n, attrs, c}
+  tag <- (`< <name>:n %s (<attribute>*->{}):attrs `> 
+    <html>:c %s '</' %s =n %s '>') -> {n, attrs, c}
   text <- <(!'<' .)+>
   attribute <- (%s <name>:k `= <quotedString>:v %s) -> {k, v}
-  quotedString <- <:q: '"' / "'" :> <(!=q .)*> =q
+  quotedString <- ('"' / '\''):q <(!=q .)*> =q
 ]], { s = S })
 
 tree = tinyhtmlp:match([[
@@ -233,7 +233,7 @@ tree = tinyhtmlp:match([[
  <body>
  <h1>Man, HTML is
  <i>great</i>.</h1><p>How could you even <b>think</b> 
- otherwise?</p><img src='HIPPO.JPG'></img><a 
+ otherwise?</p><img src='HIPPO.JPG' width='20'></img><a 
  href='http://twistedmatrix.com'>A Good Website</a>
  </body>
  </html>
@@ -244,8 +244,8 @@ assert(tree)
 print("+")
 
 tinyhtmld = re.compile([[
-  contents <- { <tag>* } -> {} -> concat
-  tag <- { <.>, (<.>) -> formatattrs, <contents> } -> ptag / {<.+>}
+  html <- { <tag>* } -> {} -> concat
+  tag <- { <.>, . -> formatattrs, <html> } -> ptag / <.>
 ]], { concat = table.concat, 
       ptag = function(n, attrs, c)
 		return  string.format("<%s %s>%s</%s>", n, 
@@ -261,7 +261,7 @@ tinyhtmld = re.compile([[
 
 dump = [[<html ><title >Yes</title><body ><h1 >Man, HTML is
  <i >great</i>.</h1><p >How could you even <b >think</b> 
- otherwise?</p><img src = 'HIPPO.JPG'></img><a href = 'http://twistedmatrix.com'>A Good Website</a>
+ otherwise?</p><img src = 'HIPPO.JPG' width = '20'></img><a href = 'http://twistedmatrix.com'>A Good Website</a>
  </body>
  </html>
 ]]
@@ -284,23 +284,19 @@ local function flatten(t)
 end
 
 linkextract = re.compile([[
-  contents <- { <tag>* } -> {} -> flatten
-  tag <- { "a", <href>, <contents> } -> cons
-         / { "img", <src>, <contents> } -> cons
+  html <- <contents> -> {}
+  contents <- { <tag>* }
+  tag <- { "a", <href>, <contents> }
+         / { "img", <src>, <contents> }
          / { ., ., <contents> } 
-         / {.+} -> nothing
-  href <- { { (!"href" .+), . }*,
-	    { "href", (<.+>) },
-            { (!"href" .+), . }* }
-  src <- { { (!"src" .+), . }*,
-	   { "src", (<.+>) },
-           { (!"src" .+), . }* }
-]], { cons = function (s, t)
-		table.insert(t, 1, s) 
-		return t 
-	     end,
-      flatten = flatten,
-      nothing = function () return nil end })
+         / .
+  href <- { { (!"href" .), . }*,
+	    { "href", <.> },
+            { (!"href" .), . }* }
+  src <- { { (!"src" .), . }*,
+	   { "src", (<.>) },
+           { (!"src" .), . }* }
+]])
 
 assert(#linkextract:match{tree} == 2)
 assert(linkextract:match{tree}[1] == "HIPPO.JPG")
@@ -309,16 +305,17 @@ assert(linkextract:match{tree}[2] == "http://twistedmatrix.com")
 print("+")
 
 boringfier = re.compile([[
-  contents <- { <tag>* } -> {}
-  tag <-  { "b", ., <contents> } -> unpack 
-          / { "i", ., <contents> } -> unpack
-          / { <:n: .:>, <:a: .:>, <contents>:c } -> {n, a, c} 
-          / {<.+>}
- ]], { unpack = unpack })
+  html <- <contents> -> {}
+  contents <- { <tag>* }
+  tag <-  { "b", ., <contents> }
+          / { "i", ., <contents> }
+          / { .:n, .:a, <html>:c } -> {n, a, c} 
+          / <.>
+ ]])
 
 boringfied = [[<html ><title >Yes</title><body ><h1 >Man, HTML is
  great.</h1><p >How could you even think 
- otherwise?</p><img src = 'HIPPO.JPG'></img><a href = 'http://twistedmatrix.com'>A Good Website</a>
+ otherwise?</p><img src = 'HIPPO.JPG' width = '20'></img><a href = 'http://twistedmatrix.com'>A Good Website</a>
  </body>
  </html>
 ]]

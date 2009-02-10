@@ -60,11 +60,9 @@ local Identifier = name * m.Carg(1)
 
 local num = m.C(m.R"09"^1) * S / tonumber
 
-local String = "'" * m.C((any - "'")^0) * "'" +
-               '"' * m.C((any - '"')^0) * '"'
+local String = "'" * m.Cs((m.P"\\'" / "'" + (any - "'"))^0) * "'"
 
-local StringStream = "''" * m.C((any - "'")^0) * "''" +
-                     '""' * m.C((any - '"')^0) * '""'
+local StringStream = '"' * m.C((any - '"')^0) * '"'
 
 local Token = S * "`" * m.C(any - m.S(" `\t\n")) * S
 
@@ -101,7 +99,14 @@ local function firstdef (n, Defs, r) return adddef({n}, n, Defs, r) end
 local exp = m.P{ "Exp",
   Exp = S * ( m.V"Grammar"
             + m.Cf(m.V"Seq" * ("/" * S * m.V"Seq")^0, mt.__add) );
-  Seq = m.Cf(m.Cc(m.P"") * m.V"Prefix"^0 , mt.__mul)
+  Seq = m.Cf(m.Cc(m.P"") * ((m.V"Prefix" * (m.P":" * name)^-1) / function (p, name)
+								    if name then
+								       return m.Cg(p, name)
+								    else
+								       return p
+								    end
+								 end
+			    * m.P","^-1 * S)^0 , mt.__mul)
         * (#exp_follow + patt_error);
   Prefix = "&" * S * m.V"Prefix" / mt.__len
          + "!" * S * m.V"Prefix" / mt.__unm
@@ -115,7 +120,7 @@ local exp = m.P{ "Exp",
                     )
             + "->" * S * ( m.Cg(String * m.Cc(mt.__div))
                          + m.P"{}" * m.Cc(nil, m.Ct)
-		      + m.Cmt("{" * S * (String + m.Ct(name)) * S * (
+		         + m.Cmt("{" * S * (String + m.Ct(name)) * S * (
 				 "," * S * (String + m.Ct(name)))^0 * S * "}",
 				 function(s, i, ...)
 				    local names = { ... }
@@ -141,11 +146,6 @@ local exp = m.P{ "Exp",
             + "=>" * S * m.Cg(Identifier / getdef * m.Cc(m.Cmt))
             ) * S
           )^0, function (a,b,f) return f(a,b) end );
-  TableItem = m.V"TableCap" * S + String * S / m.L + 
-     "(" * S * m.V"Exp"/m.L * ")" * S * #(m.S",}>") + m.V"Prefix";
-  TableSlice = m.Cf(m.V"TableItem" * ("," * S * m.V"TableItem")^0, mt.__mul);
-  TableCap = "<" * (-m.R("az", "AZ", "09", "__", "::", "~~", "<<")) * S * 
-         m.V"TableSlice" * ">" / m.C;
   Primary = "(" * m.V"Exp" * ")"
             + StringStream / m.L
             + String / m.P
@@ -156,7 +156,7 @@ local exp = m.P{ "Exp",
                      function (n, p) return m.Cg(p, n) end
             + "=" * name / function (n) return m.Cmt(m.Cb(n), equalcap) end
             + m.P"<>" / m.Cp
-	    + "{" * S * m.V"TableSlice" * "}" / m.L
+	    + "{" * S * m.V"Exp" * "}" / m.L
   	    + "<" * Identifier * ">:" * name / function (def, Defs, name)
 					   local p =  Defs and Defs[def] or Predef[def] 
 					      or m.V(def)
