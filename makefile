@@ -24,8 +24,8 @@ listlpeg.so: lpeg.c
 	luarocks make listlpeg-scm-1.rockspec
 
 test: test.lua list.lua
-	lua -l luarocks.require test.lua
-	lua -l luarocks.require list.lua
+	lua -l luarocks.require test/test.lua
+	lua -l luarocks.require test/list.lua
 
 dist:
 	git archive --format=tar --prefix=listlpeg-scm/ HEAD | gzip > listlpeg-scm.tar.gz

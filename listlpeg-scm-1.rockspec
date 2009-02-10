@@ -22,5 +22,6 @@ build = {
       listlpeg = "lpeg.c",
       ["listlpeg.re"] = "re.lua",
       listre = "listre.lua"
-   }
+   },
+   copy_directories = { "test", "doc" }
 }
