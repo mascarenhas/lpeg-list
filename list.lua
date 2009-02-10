@@ -324,4 +324,34 @@ assert(tinyhtmld:match{boringfier:match{tree}} == boringfied)
 
 print("+")
 
+p = re.compile([[ { "foo", < "bar", (!"baz" .)*, "baz" > => cap, "boo" } ]],
+	       { cap = function (s, i, c)
+			 assert(#s == 7)
+			 return true, c
+		       end })
+
+assert(select(4, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }}) == "three")
+
+print("+")
+
+p = re.compile([[ { "foo", < "bar", (!"baz" .)*, "baz" > => cap, "boo" } ]],
+	       { cap = function (s, i, c)
+			 assert(#s == 8)
+			 return i + 1, c
+		       end })
+
+assert(select(4, p:match{{ "foo", "bar", "one", "two", "three", "baz", "xoo", "boo" }}) == "three")
+
+print("+")
+
+p = re.compile([[ { "foo", < "bar", (!"baz" .)*, "baz" > => cap, "boo" } ]],
+	       { cap = function (s, i, c)
+			 assert(#s == 7)
+			 return true, "foo"
+		       end })
+
+assert(p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo" }} == "foo")
+
+print("+")
+
 print("OK")

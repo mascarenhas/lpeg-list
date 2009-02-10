@@ -679,9 +679,6 @@ static Stream *match (lua_State *L,
         continue;
       }
       case ICloseRunTime: {
-	if(s->kind != Sstring) 
-	  return (luaL_error(L, "dynamic captures need string subjects"), 
-		  (Stream*)0);
         int fr = lua_gettop(L) + 1;  /* stack index of first result */
         int ncap = runtimecap(L, capture + captop, capture, s, ptop);
         lua_Integer res = lua_tointeger(L, fr) - 1;  /* offset */
@@ -691,12 +688,31 @@ static Stream *match (lua_State *L,
             lua_settop(L, fr - 1);  /* remove results */
             goto fail;  /* and fail */
           }
-          else if (lua_isboolean(L, fr))  /* true? */
-            res = s->u.s.s - s->u.s.o;  /* keep current position */
+          else if (lua_isboolean(L, fr)) { /* true? keep current position */
+            switch(s->kind) {
+	    case Sstring: res = s->u.s.s - s->u.s.o; break;
+	    case Slist: res = s->u.l.cur - 1; break;
+	    default: 
+	      return (luaL_error(L, "dynamic captures not supported for this stream"), (Stream*)0);
+	    }
+	  }
         }
-        if (res < s->u.s.s - s->u.s.o || res > s->u.s.e - s->u.s.o)
-          luaL_error(L, "invalid position returned by match-time capture");
-        s->u.s.s = s->u.s.o + res;  /* update current position */
+	switch(s->kind) {
+          case Sstring: {
+	    if (res < s->u.s.s - s->u.s.o || res > s->u.s.e - s->u.s.o)
+	      luaL_error(L, "invalid position returned by match-time capture");
+	    s->u.s.s = s->u.s.o + res;  /* update current position */
+	    break;
+	  }
+	  case Slist: {
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref); assert(lua_istable(L, -1));
+	    res = res + 1;
+	    if (res + 1 < s->u.l.cur || res > (int)lua_objlen(L, -1))
+	      luaL_error(L, "invalid position returned by match-time capture");
+	    lua_pop(L, 1);
+	    s->u.l.cur = res;
+	  }
+	}
         captop -= ncap;  /* remove nested captures */
         lua_remove(L, fr);  /* remove first result (offset) */
         if (n > 0) {  /* captures? */
@@ -2153,8 +2169,20 @@ static int runtimecap (lua_State *L, Capture *close, Capture *ocap,
   cs.valuecached = 0; cs.ptop = ptop;
   luaL_checkstack(L, 4, "too many runtime captures");
   pushluaval(&cs);
-  lua_pushvalue(L, SUBJIDX);  /* push original subject */
-  lua_pushinteger(L, s->u.s.s - s->u.s.o + 1);  /* current position */
+  switch(s->kind) {  /* current position */
+    case Sstring: {
+      lua_pushlstring(L, s->u.s.o, s->u.s.e - s->u.s.o);
+      lua_pushinteger(L, s->u.s.s - s->u.s.o + 1); 
+      break;
+    }
+    case Slist: {
+      lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+      lua_pushinteger(L, s->u.l.cur); 
+      break;
+    }
+    default: 
+      luaL_error(L, "dynamic captures with this stream type not supported");
+  }
   n = pushallvalues(&cs, 0);
   lua_call(L, n + 2, LUA_MULTRET);
   return close - open;
