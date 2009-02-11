@@ -397,143 +397,6 @@ static void adddyncaptures (Stream *s, Capture *base, int n, int fd) {
 
 #define condfailed(p)	{ int f = p->i.offset; if (f) p+=f; else goto fail; }
 
-static void chainsubst(lua_State *L, Capture **capture, Stream *s, int *captop, int *capsize, int ptop) {
-  int c;
-  Capture *cap = *capture;
-  int top = *captop;
-  for(c = top - 1; c > 0; c--) {
-    if(cap[c].kind == Csubst && cap[c].siz == 0) {
-      cap[top].s = *s;
-      cap[top].idx = 0;
-      cap[top].kind = Csubst;
-      cap[top].siz = 0;
-      if (++(*captop) >= *capsize) {
-	*capture = doublecap(L, *capture, *captop, ptop);
-	*capsize = 2 * (*captop);
-      }
-      break;
-    }
-  }
-}
-/*
-static void closesubst(lua_State *L, Capture **capture, Stream *s, int *captop, int *capsize, int ptop) {
-  Capture *cap = *capture;
-  int top = *captop;
-  if(cap[top - 1].kind == Csubst && cap[top - 1].siz == 0 &&
-        cap[top - 1].s.kind == s->kind) {
-    switch(s->kind) {
-      case Sstring: {
-	if(s->u.s.o == cap[top - 1].s.u.s.o) {
-	  const char *s1 = s->u.s.s;
-	  assert(top > 0);
-	  if (cap[top - 1].siz == 0 &&
-	      s1 - cap[top - 1].s.u.s.s < UCHAR_MAX) {
-	    cap[top - 1].siz = s1 - cap[top - 1].s.u.s.s + 1;
-	  }
-	  else {
-	    cap[top].siz = 1;  /* mark entry as closed */
-	    cap[top].s = *s;
-	    cap[top].idx = 0;
-	    cap[top].kind = Cclose;
-	    if (++(*captop) >= *capsize) {
-	      *capture = doublecap(L, *capture, *captop, ptop);
-	      *capsize = 2 * (*captop);
-	    }
-	  }
-	}
-	break;
-      }
-      case Slist: {
-	if(s->u.l.ref == cap[top - 1].s.u.l.ref) {
-	  int cur1 = s->u.l.cur;
-	  assert(top > 0);
-	  if (cap[top - 1].siz == 0 &&
-	      cur1 - cap[top - 1].s.u.l.cur < UCHAR_MAX) {
-	    cap[top - 1].siz = cur1 - 
-	      cap[top - 1].s.u.l.cur + 1;
-	  }
-	  else {
-	    cap[top].siz = 1;  /* mark entry as closed */
-	    cap[top].s = *s;
-	    cap[top].idx = 0;
-	    cap[top].kind = Cclose;
-	    if (++(*captop) >= *capsize) {
-	      *capture = doublecap(L, *capture, *captop, ptop);
-	      *capsize = 2 * (*captop);
-	    }
-	  }
-	}
-	break;
-      }
-      default: luaL_error(L, "stream type not supported");
-    }
-  }
-}
-*/
-static void closesubst(lua_State *L, Capture **capture, Stream *s, int *captop, int *capsize, int ptop) {
-  Capture *cap = *capture;
-  int top = *captop;
-  if(cap[top - 1].kind == Csubst && cap[top - 1].siz == 0 &&
-        cap[top - 1].s.kind == s->kind) {
-    switch(s->kind) {
-      case Sstring: {
-	if(s->u.s.o == cap[top - 1].s.u.s.o) {
-	  const char *s1 = s->u.s.s;
-	  assert(top > 0);
-	  if (cap[top - 1].siz == 0 &&
-	      s1 - cap[top - 1].s.u.s.s < UCHAR_MAX) {
-	    cap[top - 1].siz = s1 - cap[top - 1].s.u.s.s + 1;
-	  }
-	  else {
-	    cap[top].siz = 1;  /* mark entry as closed */
-	    cap[top].s = *s;
-	    cap[top].idx = 0;
-	    cap[top].kind = Cclose;
-	    if (++(*captop) >= *capsize) {
-	      *capture = doublecap(L, *capture, *captop, ptop);
-	      *capsize = 2 * (*captop);
-	    }
-	  }
-	}
-	break;
-      }
-      case Slist: {
-	if(s->u.l.ref == cap[top - 1].s.u.l.ref) {
-	  int cur1 = s->u.l.cur;
-	  assert(top > 0);
-	  if (cap[top - 1].siz == 0 &&
-	      cur1 - cap[top - 1].s.u.l.cur < UCHAR_MAX) {
-	    cap[top - 1].siz = cur1 - 
-	      cap[top - 1].s.u.l.cur + 1;
-	  }
-	  else {
-	    cap[top].siz = 1;  /* mark entry as closed */
-	    cap[top].s = *s;
-	    cap[top].idx = 0;
-	    cap[top].kind = Cclose;
-	    if (++(*captop) >= *capsize) {
-	      *capture = doublecap(L, *capture, *captop, ptop);
-	      *capsize = 2 * (*captop);
-	    }
-	  }
-	}
-	break;
-      }
-      default: luaL_error(L, "stream type not supported");
-    }
-  }
-}
-
-static int equalstream(Stream *s1, Stream *s2, int off) {
-  if(s1->kind == s2->kind) {
-    switch(s1->kind) {
-      case Sstring: return s1->u.s.s == s2->u.s.s-off;
-      case Slist: return (s1->u.l.ref == s2->u.l.ref) && (s1->u.l.cur == s2->u.l.cur-off);
-    }
-    return 0;
-  } else return 0;
-}
-
 static Stream *match (lua_State *L,
 		      Stream *s,
 		      Instruction *op, Capture *capture, int ptop) {
@@ -699,9 +562,6 @@ static Stream *match (lua_State *L,
 		s->kind = Slist;
 		s->u.l.ref = luaL_ref(L, plistidx(ptop));
 		s->u.l.cur = 1;
-		printf("open top: %i cap: %p\n", captop, capture);
-		chainsubst(L, &capture, s, &captop, &capsize, ptop);
-		printf("open newtop: %i cap: %p\n", captop, capture);
 		p++;
 		break;
 	      }
@@ -719,9 +579,6 @@ static Stream *match (lua_State *L,
 		lua_pop(L, 1);
 		s->u.s.s = s->u.s.o;
 		s->u.s.e = s->u.s.o + siz;
-		printf("open top: %i cap: %p\n", captop, capture);
-		chainsubst(L, &capture, s, &captop, &capsize, ptop);
-		printf("open newtop: %i cap: %p\n", captop, capture);
 		p++;
 		break;
 	      }
@@ -744,7 +601,6 @@ static Stream *match (lua_State *L,
 	    if(!lua_isnil(L, -1)) {
 	      condfailed(p);
 	    } else {
-	      closesubst(L, &capture, s, &captop, &capsize, ptop);
 	      --stack;
 	      *s = stack->s;
 	      p++;
@@ -754,7 +610,6 @@ static Stream *match (lua_State *L,
 	  case Sstring: {
 	    if(s->u.s.s < s->u.s.e) { condfailed(p); }
 	    else {
-	      closesubst(L, &capture, s, &captop, &capsize, ptop);
 	      --stack;
 	      *s = stack->s;
 	      p++;
@@ -906,24 +761,12 @@ static Stream *match (lua_State *L,
 	}
       }
       case IEmptyCapture: case IEmptyCaptureIdx:
-	if(capture[captop - 1].kind == Csubst &&
-	   getkind(p) == Csubst && equalstream(&(capture[captop - 1].s), s, getoff(p))) {
-	  captop--;
-	}
         capture[captop].siz = 1;  /* mark entry as closed */
         goto capture;
       case IOpenCapture:
-	if(capture[captop - 1].kind == Csubst &&
-	   getkind(p) == Csubst && equalstream(&(capture[captop - 1].s), s, getoff(p))) {
-	  captop--;
-	}
 	capture[captop].siz = 0;  /* mark entry as open */
 	goto capture;
       case IFullCapture:
-	if(capture[captop - 1].kind == Csubst &&
-	   getkind(p) == Csubst && equalstream(&(capture[captop - 1].s), s, getoff(p))) {
-	  captop--;
-	}
 	capture[captop].siz = getoff(p) + 1;  /* save capture size */
       capture: {
 	capture[captop].s = *s;
@@ -2495,10 +2338,7 @@ static void substcap (SubstAux *sa, CapState *cs) {
 	cs->cap++;
 	while (!isclosecap(cs->cap)) {
 	  if(cs->cap->s.kind != Slist || cs->cap->s.u.l.ref != ref) {
-	    if (pushoneitem(tabidx, cs, "replacement") > 0) {
-	      lua_rawseti(cs->L, tabidx, ++last);
-	      curr++;
-	    }
+	    luaL_error(cs->L, "can't mix different streams on substitution capture");
 	  } else {
 	    int next = cs->cap->s.u.l.cur;
 	    lua_rawgeti(cs->L, plistidx(cs->ptop), ref);
@@ -2511,12 +2351,10 @@ static void substcap (SubstAux *sa, CapState *cs) {
 	      curr = next;
 	    else {
 	      lua_rawseti(cs->L, tabidx, ++last);
-	      curr = (cs->cap-1)->s.u.l.cur + 1;
+	      curr = (cs->cap-1)->s.u.l.cur + (cs->cap-1)->siz - 1;
 	    }
 	  }
 	}
-	printcap(cs->cap);
-	printf("kind: %i %i\n", cs->cap->s.kind, Sstring);
 	lua_rawgeti(cs->L, plistidx(cs->ptop), cs->cap->s.u.l.ref);
 	for(; curr < cs->cap->s.u.l.cur; curr++) {
 	  lua_rawgeti(cs->L, -1, curr);

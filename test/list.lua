@@ -319,8 +319,6 @@ boringfied = [[<html ><title >Yes</title><body ><h1 >Man, HTML is
  </html>
 ]]
 
-m.print(boringfier)
-
 assert(tinyhtmld:match{boringfier:match{tree}} == boringfied)
 
 print("+")
@@ -405,9 +403,14 @@ print("+")
 p = re.compile([[ { "foo", <~ "bar", (!"baz" .)*, {'baz' -> upper}, "boo", "biz" ~>, "zoo" } ]],
 	       { upper = string.upper })
 
-m.print(p)
+assert(not pcall(p.match, p, {{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }}))
 
-print(unpack(p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }}))
+print("+")
+
+p = re.compile([[ { "foo", <~ "bar", (!"baz" .)*, {'baz' -> upper} -> id, "boo", "biz" ~>, "zoo" } ]],
+	       { upper = string.upper, id = function (x) return x end })
+
+
 assert(select(5, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }}) == "BAZ")
 assert(#p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }} == 7)
 assert(select(6, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "biz", "zoo" }}) == "boo")
