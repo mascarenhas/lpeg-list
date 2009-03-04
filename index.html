@@ -54,6 +54,7 @@
 
     <p>Show, don.'t tell:
 
+<pre>
 parser = re.compile([[
   exp <- <add>
   add <- (<mul>:x <aop>:op <add>:y) -> { op, x, y } / <mul>
@@ -72,6 +73,8 @@ eval = re.compile([[ exp <- {{ (.+ -> ops), <exp>, <exp> }} -> eval / {{ "num", 
 
 assert(eval:match(parser:match("8/2+3")) == 7)
 assert(eval:match(parser:match("8 / (2 + 2) - 3")) == -1)
+</pre>
+
 </p><h2>Dependencies</h2>
 <p>Lua 5.1 and a C compiler.</p>
 <h2>Install</h2>
@@ -79,9 +82,11 @@ assert(eval:match(parser:match("8 / (2 + 2) - 3")) == -1)
 <h2>License</h2>
 <p>MIT, just like LPEG.</p>
 <h2>Authors</h2>
-<p>Roberto Ierusalimschy for the main LPEG code<br/>Fabio Mascarenhas for the list matching support</p>
+<p>Roberto Ierusalimschy for the main LPEG code
+<br/>Fabio Mascarenhas for the list matching support</p>
 <h2>Contact</h2>
-<p>Fabio Mascarenhas (mascarenhas@gmail.com)<br/>      </p>
+<p>Fabio Mascarenhas (mascarenhas@gmail.com)
+<br/>      </p>
 
 
     <h2>Download</h2>
