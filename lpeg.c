@@ -124,7 +124,7 @@ static const byte opproperties[] = {
   /* ICloseRunTime */	ISCAPTURE | ISFENVOFF,
   /* IOpen */           0,
   /* IClose */          0,
-  /* IString */         0
+  /* IString */         0,
   /* IChoiceOpen */     ISJMP,
   /* ICloseCommit */    ISJMP,
 };
@@ -277,7 +277,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
     "commit", "partial_commit", "back_commit", "failtwice", "fail", "giveup",
      "func",
      "fullcapture", "emptycapture", "emptycaptureidx", "opencapture",
-    "closecapture", "closeruntime", "open", "close", "choiceopen", "closecommit"
+    "closecapture", "closeruntime", "open", "close", "string", "choiceopen", "closecommit"
   };
   printf("%02ld: %s ", (long)(p - op), names[p->i.code]);
   switch ((Opcode)p->i.code) {
