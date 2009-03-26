@@ -85,7 +85,8 @@ typedef enum Opcode {
   ICommit, IPartialCommit, IBackCommit, IFailTwice, IFail, IGiveup,
   IFunc,
   IFullCapture, IEmptyCapture, IEmptyCaptureIdx,
-  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose, IString
+  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose, IString,
+  IChoiceOpen, ICloseCommit
 } Opcode;
 
 
@@ -124,6 +125,8 @@ static const byte opproperties[] = {
   /* IOpen */           0,
   /* IClose */          0,
   /* IString */         0
+  /* IChoiceOpen */     ISJMP,
+  /* ICloseCommit */    ISJMP,
 };
 
 
@@ -274,7 +277,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
     "commit", "partial_commit", "back_commit", "failtwice", "fail", "giveup",
      "func",
      "fullcapture", "emptycapture", "emptycaptureidx", "opencapture",
-    "closecapture", "closeruntime", "open", "close"
+    "closecapture", "closeruntime", "open", "close", "choiceopen", "closecommit"
   };
   printf("%02ld: %s ", (long)(p - op), names[p->i.code]);
   switch ((Opcode)p->i.code) {
@@ -317,7 +320,12 @@ static void printinst (const Instruction *op, const Instruction *p) {
       printf(" (%d)", p->i.aux);
       break;
     }
-    case IJmp: case ICall: case ICommit:
+    case IChoiceOpen: {
+      printjmp(op, p);
+      printf(" (%d)", p->i.aux);
+      break;
+    }
+    case IJmp: case ICall: case ICommit: case ICloseCommit:
     case IPartialCommit: case IBackCommit: {
       printjmp(op, p);
       break;
@@ -571,6 +579,7 @@ static Stream *match (lua_State *L,
         p += p->i.offset;
         continue;
       }
+      case IChoiceOpen:
       case IOpen: {
 	switch(s->kind) {
 	  case Slist: {
@@ -582,9 +591,9 @@ static Stream *match (lua_State *L,
 		if (stack >= stacklimit)
 		  return (luaL_error(L, "too many pending calls/choices"), 
 			  (Stream *)0);
-		stack->p = NULL;
-		s->u.l.cur++;
+		stack->p = p->i.code == IChoiceOpen ? dest(0, p): NULL;
 		stack->s = *s;
+		stack->caplevel = captop;
 		stack++;
 		s->kind = Slist;
 		s->u.l.ref = luaL_ref(L, plistidx(ptop));
@@ -597,9 +606,9 @@ static Stream *match (lua_State *L,
 		if (stack >= stacklimit)
 		  return (luaL_error(L, "too many pending calls/choices"), 
 			  (Stream *)0);
-		stack->p = NULL;
-		s->u.l.cur++;
+		stack->p = p->i.code == IChoiceOpen ? dest(0, p): NULL;
 		stack->s = *s;
+		stack->caplevel = captop;
 		stack++;
 		s->kind = Sstring;
 		s->u.s.o = lua_tolstring(L, -1, &siz);
@@ -618,32 +627,34 @@ static Stream *match (lua_State *L,
 	}
 	continue;
       }
+      case ICloseCommit:
       case IClose: {
 	switch(s->kind) {
 	  case Slist: {
 	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
-	    assert(lua_istable(L, -1) && stack > stackbase && 
-		   (stack - 1)->p == NULL);
+	    assert(lua_istable(L, -1) && stack > stackbase);
 	    lua_rawgeti(L, -1, s->u.l.cur);
 	    if(!lua_isnil(L, -1)) {
-	      condfailed(p);
+	      goto fail;
 	    } else {
 	      --stack;
 	      *s = stack->s;
-	      p++;
+	      s->u.l.cur++;
+	      if(p->i.offset) p += p->i.offset; else p++;
 	    }
 	    lua_pop(L, 2); break;
 	  }
 	  case Sstring: {
-	    if(s->u.s.s < s->u.s.e) { condfailed(p); }
+	    if(s->u.s.s < s->u.s.e) { goto fail; }
 	    else {
 	      --stack;
 	      *s = stack->s;
-	      p++;
+	      s->u.l.cur++;
+	      if(p->i.offset) p += p->i.offset; else p++;
 	    }
 	    break;
 	  }
-	  default: condfailed(p);
+	  default: goto fail;
 	}
 	continue;
       }
@@ -854,11 +865,12 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         p++;
         continue;
       }
+      case IChoiceOpen:
       case IOpen:
       {
         if (backtop >= MAXBACK)
           return luaL_error(L, "too many pending calls/choices");
-	back[backtop].p = NULL;
+	back[backtop].p = p->i.code == IChoiceOpen ? dest(0, p): NULL;
 	back[backtop++].s = dummy_l;
 	p++;
 	continue;
@@ -902,12 +914,13 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
           continue;
         }
       }
+      case ICloseCommit:
       case IClose:
       {
 	assert(backtop > 0);
 	backtop--;
 	assert(back[backtop].s.kind == Slist);
-	p++;
+	if(p->i.offset) goto dojmp; else p++;
 	continue;
       }
       case IString: {
@@ -1668,6 +1681,9 @@ static int interfere (Instruction *p1, int l1, CharsetTag *st2) {
   }
 }
 
+static int islist(Instruction *p, int l) {
+  return p->i.code == IOpen && (p+l-1)->i.code == IClose;
+}
 
 static Instruction *basicUnion (lua_State *L, Instruction *p1, int l1,
                                 int l2, int *size, CharsetTag *st2) {
@@ -1689,12 +1705,20 @@ static Instruction *basicUnion (lua_State *L, Instruction *p1, int l1,
   }
   else {
     /* choice L1; e1; commit L2; L1: e2; L2: ... */
-    Instruction *p = auxnew(L, &op, size, 1 + l1 + 1 + l2);
-    setinst(p++, IChoice, 1 + l1 + 1);
-    copypatt(p, p1, l1); p += l1;
-    setinst(p++, ICommit, 1 + l2);
-    addpatt(L, p, 2);
-    optimizechoice(p - (1 + l1 + 1));
+    if(islist(p1, l1)) {
+      Instruction *p = auxnew(L, &op, size, l1 + l2);
+      copypatt(p, p1, l1);
+      setinst(p, IChoiceOpen, l1); p += l1 - 1;
+      setinst(p, ICloseCommit, 1 + l2); p++;
+      addpatt(L, p, 2);
+    } else {
+      Instruction *p = auxnew(L, &op, size, 1 + l1 + 1 + l2);
+      setinst(p++, IChoice, 1 + l1 + 1);
+      copypatt(p, p1, l1); p += l1;
+      setinst(p++, ICommit, 1 + l2);
+      addpatt(L, p, 2);
+      optimizechoice(p - (1 + l1 + 1));
+    }
   }
   return op;
 }
