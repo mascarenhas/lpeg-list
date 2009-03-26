@@ -85,7 +85,7 @@ typedef enum Opcode {
   ICommit, IPartialCommit, IBackCommit, IFailTwice, IFail, IGiveup,
   IFunc,
   IFullCapture, IEmptyCapture, IEmptyCaptureIdx,
-  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose
+  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose, IString
 } Opcode;
 
 
@@ -123,6 +123,7 @@ static const byte opproperties[] = {
   /* ICloseRunTime */	ISCAPTURE | ISFENVOFF,
   /* IOpen */           0,
   /* IClose */          0,
+  /* IString */         0
 };
 
 
@@ -195,6 +196,7 @@ typedef struct Capture {
 
 static int sizei (const Instruction *i) {
   if (hascharset(i)) return CHARSETINSTSIZE;
+  else if (i->i.code == IString) return i->i.aux;
   else if (i->i.code == IFunc) return i->i.offset;
   else return 1;
 }
@@ -272,7 +274,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
     "commit", "partial_commit", "back_commit", "failtwice", "fail", "giveup",
      "func",
      "fullcapture", "emptycapture", "emptycaptureidx", "opencapture",
-    "closecapture", "closeruntime", "open", "close"
+    "closecapture", "closeruntime", "open", "close", "string"
   };
   printf("%02ld: %s ", (long)(p - op), names[p->i.code]);
   switch ((Opcode)p->i.code) {
@@ -300,6 +302,10 @@ static void printinst (const Instruction *op, const Instruction *p) {
     }
     case ISpan: {
       printcharset((p+1)->buff);
+      break;
+    }
+    case IString: {
+      printf("\"%s\"", (p+1)->buff);
       break;
     }
     case IOpenCall: {
@@ -437,14 +443,11 @@ static Stream *match (lua_State *L,
 	    break;
 	  }
   	  case Slist: {
-	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
-	    assert(lua_istable(L, -1));
 	    for(; n > 0; n--, s->u.l.cur++) {
-	      lua_rawgeti(L, -1, s->u.l.cur);
+	      lua_rawgeti(L, SUBJIDX, s->u.l.cur);
 	      if(lua_isnil(L, -1)) { lua_pop(L, 1); break; }
 	      else lua_pop(L, 1);
 	    }
-	    lua_pop(L, 1);
 	    if(n > 0) { condfailed(p); } else p++;
 	    break;
 	  }
@@ -462,21 +465,39 @@ static Stream *match (lua_State *L,
 	  }
   	  case Slist: {
 	    const char *c; size_t siz;
-	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
-	    assert(lua_istable(L, -1));
-	    lua_rawgeti(L, -1, s->u.l.cur);
+	    lua_rawgeti(L, SUBJIDX, s->u.l.cur);
 	    if(lua_type(L, -1) != LUA_TSTRING) { 
-	      lua_pop(L, 2); condfailed(p); break;
+	      lua_pop(L, 1); condfailed(p); break;
 	    }
 	    c = lua_tolstring(L, -1, &siz);
 	    if(siz == 1 && (byte)*c == p->i.aux) { p++; s->u.l.cur++; }
 	    else condfailed(p);
-	    lua_pop(L, 2);
+	    lua_pop(L, 1);
 	    break;
 	  }
 	  default: { condfailed(p); }
 	}
         continue;
+      }
+      case IString: {
+	switch(s->kind) {
+	  case Sstring: {
+	    goto fail;
+	  }
+	  case Slist: {
+	    lua_rawgeti(L, SUBJIDX, s->u.l.cur);
+	    lua_pushlstring(L, (const char*)(p+1)->buff, (size_t)p->i.offset);
+	    if(lua_rawequal(L, -1, -2) == 0) {
+	      lua_pop(L, 2); goto fail;
+	    }
+	    lua_pop(L, 2);
+	    p += p->i.aux;
+	    s->u.l.cur++;
+	    break;
+	  }
+  	  default: { goto fail; }
+	}
+	continue;
       }
       case ISet: {
 	switch(s->kind) {
@@ -489,17 +510,15 @@ static Stream *match (lua_State *L,
 	  }
 	  case Slist: {
 	    const char *c; size_t siz;
-	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
-	    assert(lua_istable(L, -1));
-	    lua_rawgeti(L, -1, s->u.l.cur);
+	    lua_rawgeti(L, SUBJIDX, s->u.l.cur);
 	    if(lua_type(L, -1) != LUA_TSTRING) { 
-	      lua_pop(L, 2); condfailed(p); break;
+	      lua_pop(L, 1); condfailed(p); break;
 	    }
 	    c = lua_tolstring(L, -1, &siz);
 	    if(siz == 1 && testchar((p+1)->buff, (byte)*c))
 	      { p += CHARSETINSTSIZE; s->u.l.cur++; }
 	    else condfailed(p);
-	    lua_pop(L, 2);
+	    lua_pop(L, 1);
 	    break;
 	  }
   	  default: condfailed(p);
@@ -517,17 +536,14 @@ static Stream *match (lua_State *L,
 	  }
 	  case Slist: {
 	    const char *c; size_t siz;
-	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
-	    assert(lua_istable(L, -1));
 	    for(;; s->u.l.cur++) {
-	      lua_rawgeti(L, -1, s->u.l.cur);
+	      lua_rawgeti(L, SUBJIDX, s->u.l.cur);
 	      if(lua_type(L, -1) != LUA_TSTRING) { lua_pop(L, 1); break; }
 	      c = lua_tolstring(L, -1, &siz);
 	      if(siz != 1 || !testchar((p+1)->buff, (byte)*c))
 		{ lua_pop(L, 1); break; }
 	      lua_pop(L, 1);
 	    }
-	    lua_pop(L, 1);
 	  }
 	}
 	p += CHARSETINSTSIZE;
@@ -547,10 +563,9 @@ static Stream *match (lua_State *L,
       case IOpen: {
 	switch(s->kind) {
 	  case Slist: {
-	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
-	    assert(lua_istable(L, -1));
-	    lua_rawgeti(L, -1, s->u.l.cur);
-	    switch(lua_type(L, -1)) {
+	    lua_rawgeti(L, SUBJIDX, s->u.l.cur);
+	    lua_replace(L, SUBJIDX);
+	    switch(lua_type(L, SUBJIDX)) {
 	      case LUA_TTABLE: {
 		if (stack >= stacklimit)
 		  return (luaL_error(L, "too many pending calls/choices"), 
@@ -560,6 +575,7 @@ static Stream *match (lua_State *L,
 		stack->s = *s;
 		stack++;
 		s->kind = Slist;
+		lua_pushvalue(L, SUBJIDX);
 		s->u.l.ref = luaL_ref(L, plistidx(ptop));
 		s->u.l.cur = 1;
 		p++;
@@ -575,48 +591,53 @@ static Stream *match (lua_State *L,
 		stack->s = *s;
 		stack++;
 		s->kind = Sstring;
-		s->u.s.o = lua_tolstring(L, -1, &siz);
-		lua_pop(L, 1);
+		s->u.s.o = lua_tolstring(L, SUBJIDX, &siz);
 		s->u.s.s = s->u.s.o;
 		s->u.s.e = s->u.s.o + siz;
 		p++;
 		break;
 	      }
-	      default: lua_pop(L, 1); condfailed(p);
+	      default: goto fail;
 	    }
-	    lua_pop(L, 1);
 	    break;
 	  }
-	  default: condfailed(p);
+	  default: goto fail;
 	}
 	continue;
       }
       case IClose: {
 	switch(s->kind) {
 	  case Slist: {
-	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
-	    assert(lua_istable(L, -1) && stack > stackbase && 
-		   (stack - 1)->p == NULL);
-	    lua_rawgeti(L, -1, s->u.l.cur);
+	    assert(stack > stackbase && (stack - 1)->p == NULL);
+	    lua_rawgeti(L, SUBJIDX, s->u.l.cur);
 	    if(!lua_isnil(L, -1)) {
-	      condfailed(p);
+	      lua_pop(L, 1);
+	      goto fail;
 	    } else {
 	      --stack;
 	      *s = stack->s;
+	      if(s->kind == Slist) {
+		lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+		lua_replace(L, SUBJIDX);
+	      }
 	      p++;
 	    }
-	    lua_pop(L, 2); break;
+	    lua_pop(L, 1); break;
 	  }
 	  case Sstring: {
-	    if(s->u.s.s < s->u.s.e) { condfailed(p); }
+	    if(s->u.s.s < s->u.s.e) { goto fail; }
 	    else {
 	      --stack;
 	      *s = stack->s;
+	      if(s->kind == Slist) {
+		lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+		lua_replace(L, SUBJIDX);
+	      }
 	      p++;
 	    }
 	    break;
 	  }
-	  default: condfailed(p);
+	  default: goto fail;
 	}
 	continue;
       }
@@ -673,6 +694,10 @@ static Stream *match (lua_State *L,
 	  --stack;
 	  *s = stack->s;
         } while (s->kind == Sempty || stack->p == NULL);
+	if(s->kind == Slist) {
+	  lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	  lua_replace(L, SUBJIDX);
+	}
 	captop = stack->caplevel;
         p = stack->p;
         continue;
@@ -704,7 +729,7 @@ static Stream *match (lua_State *L,
 	    break;
 	  }
 	  case Slist: {
-	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref); assert(lua_istable(L, -1));
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref); 
 	    res = res + 1;
 	    if (res + 1 < s->u.l.cur || res > (int)lua_objlen(L, -1))
 	      luaL_error(L, "invalid position returned by match-time capture");
@@ -882,6 +907,9 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
 	assert(back[backtop].s.kind == Slist);
 	p++;
 	continue;
+      }
+      case IString: {
+        goto fail;
       }
       case IAny:
       case IChar:
@@ -1482,15 +1510,42 @@ static int concat_l (lua_State *L) {
   return 1;
 }
 
+static int isstring (Instruction *p, int psiz) {
+  int i;
+  for(i = 0; i < psiz; i++, p++) {
+    if(p->i.code != IChar) return 0;
+  }
+  return 1;
+}
+
+static void fillstring(Instruction *op, Instruction *p, int psiz) {
+  int i;
+  char *s = (char *)op;
+  for(i = 0; i < psiz; i++, p++)
+    s[i] = (char)p->i.aux;
+  s[psiz] = (char)0;
+}
+
 static int pattlist_l (lua_State *L) {
   int l;
   Instruction *op;
   Instruction *p;
   Instruction *p1 = getpatt(L, 1, &l);
-  op = newpatt(L, 2 + l);
-  setinst(op++, IOpen, 0);
-  p = op + addpatt(L, op, 1);
-  setinst(p, IClose, 0);
+  if(isstring(p1, l)) {
+    int off;
+    if(((l + 1) % sizeof(Instruction)) == 0)
+      off = (l + 1)/sizeof(Instruction) + 1;
+    else
+      off = (l + 1)/sizeof(Instruction) + 2;
+    op = newpatt(L, off);
+    setinstaux(op++, IString, l, off);
+    fillstring(op, p1, l);
+  } else {
+    op = newpatt(L, 2 + l);
+    setinst(op++, IOpen, 0);
+    p = op + addpatt(L, op, 1);
+    setinst(p, IClose, 0);
+  }
   return 1;
 }
 
