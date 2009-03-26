@@ -85,7 +85,7 @@ typedef enum Opcode {
   ICommit, IPartialCommit, IBackCommit, IFailTwice, IFail, IGiveup,
   IFunc,
   IFullCapture, IEmptyCapture, IEmptyCaptureIdx,
-  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose
+  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose, IString
 } Opcode;
 
 
@@ -123,6 +123,7 @@ static const byte opproperties[] = {
   /* ICloseRunTime */	ISCAPTURE | ISFENVOFF,
   /* IOpen */           0,
   /* IClose */          0,
+  /* IString */         0
 };
 
 
@@ -195,6 +196,7 @@ typedef struct Capture {
 
 static int sizei (const Instruction *i) {
   if (hascharset(i)) return CHARSETINSTSIZE;
+  else if (i->i.code == IString) return i->i.aux;
   else if (i->i.code == IFunc) return i->i.offset;
   else return 1;
 }
@@ -284,6 +286,10 @@ static void printinst (const Instruction *op, const Instruction *p) {
     case IAny: {
       printf("* %d", p->i.aux);
       printjmp(op, p);
+      break;
+    }
+    case IString: {
+      printf("\"%s\"", (p+1)->buff);
       break;
     }
     case IFullCapture: case IOpenCapture:
@@ -531,6 +537,27 @@ static Stream *match (lua_State *L,
 	  }
 	}
 	p += CHARSETINSTSIZE;
+	continue;
+      }
+      case IString: {
+	switch(s->kind) {
+	  case Sstring: {
+	    goto fail;
+	  }
+	  case Slist: {
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    lua_rawgeti(L, -1, s->u.l.cur);
+	    lua_pushlstring(L, (const char*)(p+1)->buff, (size_t)p->i.offset);
+	    if(lua_rawequal(L, -1, -2) == 0) {
+	      lua_pop(L, 3); goto fail;
+	    }
+	    lua_pop(L, 3);
+	    p += p->i.aux;
+	    s->u.l.cur++;
+	    break;
+	  }
+  	  default: { goto fail; }
+	}
 	continue;
       }
       case IFunc: {
@@ -882,6 +909,9 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
 	assert(back[backtop].s.kind == Slist);
 	p++;
 	continue;
+      }
+      case IString: {
+        goto fail;
       }
       case IAny:
       case IChar:
@@ -1482,15 +1512,42 @@ static int concat_l (lua_State *L) {
   return 1;
 }
 
+static int isstring (Instruction *p, int psiz) {
+  int i;
+  for(i = 0; i < psiz; i++, p++) {
+    if(p->i.code != IChar) return 0;
+  }
+  return 1;
+}
+
+static void fillstring(Instruction *op, Instruction *p, int psiz) {
+  int i;
+  char *s = (char *)op;
+  for(i = 0; i < psiz; i++, p++)
+    s[i] = (char)p->i.aux;
+  s[psiz] = (char)0;
+}
+
 static int pattlist_l (lua_State *L) {
   int l;
   Instruction *op;
   Instruction *p;
   Instruction *p1 = getpatt(L, 1, &l);
-  op = newpatt(L, 2 + l);
-  setinst(op++, IOpen, 0);
-  p = op + addpatt(L, op, 1);
-  setinst(p, IClose, 0);
+  if(isstring(p1, l)) {
+    int off;
+    if(((l + 1) % sizeof(Instruction)) == 0)
+      off = (l + 1)/sizeof(Instruction) + 1;
+    else
+      off = (l + 1)/sizeof(Instruction) + 2;
+    op = newpatt(L, off);
+    setinstaux(op++, IString, l, off);
+    fillstring(op, p1, l);
+  } else {
+    op = newpatt(L, 2 + l);
+    setinst(op++, IOpen, 0);
+    p = op + addpatt(L, op, 1);
+    setinst(p, IClose, 0);
+  }
   return 1;
 }
 
