@@ -274,7 +274,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
     "commit", "partial_commit", "back_commit", "failtwice", "fail", "giveup",
      "func",
      "fullcapture", "emptycapture", "emptycaptureidx", "opencapture",
-    "closecapture", "closeruntime", "open", "close"
+    "closecapture", "closeruntime", "open", "close", "string"
   };
   printf("%02ld: %s ", (long)(p - op), names[p->i.code]);
   switch ((Opcode)p->i.code) {
