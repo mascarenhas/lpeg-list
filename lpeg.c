@@ -999,9 +999,11 @@ static void checkrule (lua_State *L, Instruction *op, int from, int to,
   int i;
   int lastopen = 0;  /* more recent OpenCall seen in the code */
   for (i = from; i < to; i += sizei(op + i)) {
-    if (op[i].i.code == IPartialCommit && op[i].i.offset < 0) {  /* loop? */
+    if ((op[i].i.code == IPartialCommit || op[i].i.code == IPartialCloseCommit)
+	&& op[i].i.offset < 0) {  /* loop? */
       int start = dest(op, i);
-      assert(op[start - 1].i.code == IChoice && dest(op, start - 1) == i + 1);
+      assert((op[start - 1].i.code == IChoice || op[start - 1].i.code == IChoiceOpen)
+	     && dest(op, start - 1) == i + 1);
       if (start <= lastopen) {  /* loop does contain an open call? */
         if (!verify(L, op, op + start, op + i, postable, rule)) /* check body */
           luaL_error(L, "possible infinite loop in %s", val2str(L, rule));
@@ -1795,17 +1797,31 @@ static Instruction *repeatheadfail (lua_State *L, int l1, int n) {
 static Instruction *repeats (lua_State *L, Instruction *p1, int l1, int n) {
   /* e; ...; e; choice L1; L2: e; partialcommit L2; L1: ... */
   int i;
-  Instruction *op = newpatt(L, (n + 1)*l1 + 2);
-  Instruction *p = op;
-  if (!verify(L, p1, p1, p1 + l1, 0, 0))
-    luaL_error(L, "loop body may accept empty string");
-  for (i = 0; i < n; i++) {
+  if(islist(p1, l1)) {
+    Instruction *op = newpatt(L, (n + 1)*l1);
+    Instruction *p = op;
+    if (!verify(L, p1, p1, p1 + l1, 0, 0))
+      luaL_error(L, "loop body may accept empty string");
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+    }
+    addpatt(L, p, 1);
+    setinst(p, IChoiceOpen, l1);
+    setinst(p + l1 - 1, IPartialCloseCommit, -l1 + 2);
+    return op;
+  } else {
+    Instruction *op = newpatt(L, (n + 1)*l1 + 2);
+    Instruction *p = op;
+    if (!verify(L, p1, p1, p1 + l1, 0, 0))
+      luaL_error(L, "loop body may accept empty string");
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+    }
+    setinst(p++, IChoice, 1 + l1 + 1);
     p += addpatt(L, p, 1);
+    setinst(p, IPartialCommit, -l1);
+    return op;
   }
-  setinst(p++, IChoice, 1 + l1 + 1);
-  p += addpatt(L, p, 1);
-  setinst(p, IPartialCommit, -l1);
-  return op;
 }
 
 
@@ -1822,16 +1838,28 @@ static void optionalheadfail (lua_State *L, int l1, int n) {
 
 static void optionals (lua_State *L, int l1, int n) {
   /* choice L1; e; partialcommit L2; L2: ... e; L1: commit L3; L3: ... */
-  int i;
-  Instruction *op = newpatt(L, n*(l1 + 1) + 1);
-  Instruction *p = op;
-  setinst(p++, IChoice, 1 + n*(l1 + 1));
-  for (i = 0; i < n; i++) {
-    p += addpatt(L, p, 1);
-    setinst(p++, IPartialCommit, 1);
+  int i; int l;
+  Instruction *p1 = getpatt(L, 1, &l);
+  if(islist(p1, l1)) {
+    Instruction *op = newpatt(L, n*l1);
+    Instruction *p = op;
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+      setinst(p - l1, IChoiceOpen, n*l1);
+      setinst(p - 1, IPartialCloseCommit, 1);
+    }
+    setinst(p - 1, ICloseCommit, 1);  /* correct last commit */
+  } else {
+    Instruction *op = newpatt(L, n*(l1 + 1) + 1);
+    Instruction *p = op;
+    setinst(p++, IChoice, 1 + n*(l1 + 1));
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+      setinst(p++, IPartialCommit, 1);
+    }
+    setinst(p - 1, ICommit, 1);  /* correct last commit */
+    optimizechoice(op);
   }
-  setinst(p - 1, ICommit, 1);  /* correct last commit */
-  optimizechoice(op);
 }
 
 
