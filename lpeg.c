@@ -86,7 +86,7 @@ typedef enum Opcode {
   IFunc,
   IFullCapture, IEmptyCapture, IEmptyCaptureIdx,
   IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose, IString,
-  IChoiceOpen, ICloseCommit
+  IChoiceOpen, ICloseCommit, IPartialCloseCommit
 } Opcode;
 
 
@@ -127,6 +127,7 @@ static const byte opproperties[] = {
   /* IString */         0,
   /* IChoiceOpen */     ISJMP,
   /* ICloseCommit */    ISJMP,
+  /* IPartialCloseCommit */    ISJMP,
 };
 
 
@@ -278,6 +279,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
      "func",
      "fullcapture", "emptycapture", "emptycaptureidx", "opencapture",
     "closecapture", "closeruntime", "open", "close", "string", "choiceopen", "closecommit"
+    "partialclosecommit"
   };
   printf("%02ld: %s ", (long)(p - op), names[p->i.code]);
   switch ((Opcode)p->i.code) {
@@ -326,7 +328,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
       break;
     }
     case IJmp: case ICall: case ICommit: case ICloseCommit:
-    case IPartialCommit: case IBackCommit: {
+    case IPartialCloseCommit: case IPartialCommit: case IBackCommit: {
       printjmp(op, p);
       break;
     }
@@ -694,6 +696,48 @@ static Stream *match (lua_State *L,
         p += p->i.offset;
         continue;
       }
+      case IPartialCloseCommit: {
+	switch(s->kind) {
+	  case Slist: {
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    lua_rawgeti(L, -1, s->u.l.cur);
+	    if(!lua_isnil(L, -1)) {
+	      lua_pop(L, 2); goto fail;
+	    }
+	    lua_pop(L, 2); break;
+	  }
+	  case Sstring: {
+	    if(s->u.s.s < s->u.s.e) { goto fail; }
+	    break;
+	  }
+	  default: goto fail;
+	}
+	(stack - 1)->s.u.l.cur++;
+	(stack - 1)->caplevel = captop;
+      	lua_rawgeti(L, plistidx(ptop), (stack - 1)->s.u.l.ref);
+	lua_rawgeti(L, -1, (stack - 1)->s.u.l.cur);
+	switch(lua_type(L, -1)) {
+	  case LUA_TTABLE: {
+	    s->kind = Slist;
+	    s->u.l.ref = luaL_ref(L, plistidx(ptop));
+	    s->u.l.cur = 1;
+	    break;
+	  }
+	  case LUA_TSTRING: {
+	    size_t siz;
+	    s->kind = Sstring;
+	    s->u.s.o = lua_tolstring(L, -1, &siz);
+	    lua_pop(L, 1);
+	    s->u.s.s = s->u.s.o;
+	    s->u.s.e = s->u.s.o + siz;
+	    break;
+	  }
+	  default: lua_pop(L, 2); goto fail;
+	}
+	p += p->i.offset;
+	lua_pop(L, 1);
+	continue;
+      }
       case IBackCommit: {
         assert(stack > stackbase);
         *s = (--stack)->s;
@@ -904,6 +948,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         backtop--;
         goto dojmp;
       }
+      case IPartialCloseCommit:
       case IPartialCommit: {
         assert(backtop > 0);
         if (p->i.offset > 0) goto dojmp;  /* forward jump */
@@ -984,9 +1029,11 @@ static void checkrule (lua_State *L, Instruction *op, int from, int to,
   int i;
   int lastopen = 0;  /* more recent OpenCall seen in the code */
   for (i = from; i < to; i += sizei(op + i)) {
-    if (op[i].i.code == IPartialCommit && op[i].i.offset < 0) {  /* loop? */
+    if ((op[i].i.code == IPartialCommit || op[i].i.code == IPartialCloseCommit)
+	&& op[i].i.offset < 0) {  /* loop? */
       int start = dest(op, i);
-      assert(op[start - 1].i.code == IChoice && dest(op, start - 1) == i + 1);
+      assert((op[start - 1].i.code == IChoice || op[start - 1].i.code == IChoiceOpen)
+	     && dest(op, start - 1) == i + 1);
       if (start <= lastopen) {  /* loop does contain an open call? */
         if (!verify(L, op, op + start, op + i, postable, rule)) /* check body */
           luaL_error(L, "possible infinite loop in %s", val2str(L, rule));
@@ -1807,17 +1854,31 @@ static Instruction *repeatheadfail (lua_State *L, int l1, int n) {
 static Instruction *repeats (lua_State *L, Instruction *p1, int l1, int n) {
   /* e; ...; e; choice L1; L2: e; partialcommit L2; L1: ... */
   int i;
-  Instruction *op = newpatt(L, (n + 1)*l1 + 2);
-  Instruction *p = op;
-  if (!verify(L, p1, p1, p1 + l1, 0, 0))
-    luaL_error(L, "loop body may accept empty string");
-  for (i = 0; i < n; i++) {
+  if(islist(p1, l1)) {
+    Instruction *op = newpatt(L, (n + 1)*l1);
+    Instruction *p = op;
+    if (!verify(L, p1, p1, p1 + l1, 0, 0))
+      luaL_error(L, "loop body may accept empty string");
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+    }
+    addpatt(L, p, 1);
+    setinst(p, IChoiceOpen, l1);
+    setinst(p + l1 - 1, IPartialCloseCommit, -l1 + 2);
+    return op;
+  } else {
+    Instruction *op = newpatt(L, (n + 1)*l1 + 2);
+    Instruction *p = op;
+    if (!verify(L, p1, p1, p1 + l1, 0, 0))
+      luaL_error(L, "loop body may accept empty string");
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+    }
+    setinst(p++, IChoice, 1 + l1 + 1);
     p += addpatt(L, p, 1);
+    setinst(p, IPartialCommit, -l1);
+    return op;
   }
-  setinst(p++, IChoice, 1 + l1 + 1);
-  p += addpatt(L, p, 1);
-  setinst(p, IPartialCommit, -l1);
-  return op;
 }
 
 
@@ -1834,16 +1895,28 @@ static void optionalheadfail (lua_State *L, int l1, int n) {
 
 static void optionals (lua_State *L, int l1, int n) {
   /* choice L1; e; partialcommit L2; L2: ... e; L1: commit L3; L3: ... */
-  int i;
-  Instruction *op = newpatt(L, n*(l1 + 1) + 1);
-  Instruction *p = op;
-  setinst(p++, IChoice, 1 + n*(l1 + 1));
-  for (i = 0; i < n; i++) {
-    p += addpatt(L, p, 1);
-    setinst(p++, IPartialCommit, 1);
+  int i; int l;
+  Instruction *p1 = getpatt(L, 1, &l);
+  if(islist(p1, l1)) {
+    Instruction *op = newpatt(L, n*l1);
+    Instruction *p = op;
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+      setinst(p - l1, IChoiceOpen, n*l1);
+      setinst(p - 1, IPartialCloseCommit, 1);
+    }
+    setinst(p - 1, ICloseCommit, 1);  /* correct last commit */
+  } else {
+    Instruction *op = newpatt(L, n*(l1 + 1) + 1);
+    Instruction *p = op;
+    setinst(p++, IChoice, 1 + n*(l1 + 1));
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+      setinst(p++, IPartialCommit, 1);
+    }
+    setinst(p - 1, ICommit, 1);  /* correct last commit */
+    optimizechoice(op);
   }
-  setinst(p - 1, ICommit, 1);  /* correct last commit */
-  optimizechoice(op);
 }
 
 
