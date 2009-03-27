@@ -86,7 +86,7 @@ typedef enum Opcode {
   IFunc,
   IFullCapture, IEmptyCapture, IEmptyCaptureIdx,
   IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose,
-  IChoiceOpen, ICloseCommit
+  IChoiceOpen, ICloseCommit, IPartialCloseCommit
 } Opcode;
 
 
@@ -126,6 +126,7 @@ static const byte opproperties[] = {
   /* IClose */          0,
   /* IChoiceOpen */     ISJMP,
   /* ICloseCommit */    ISJMP,
+  /* IPartialCloseCommit */    ISJMP,
 };
 
 
@@ -275,7 +276,8 @@ static void printinst (const Instruction *op, const Instruction *p) {
     "commit", "partial_commit", "back_commit", "failtwice", "fail", "giveup",
      "func",
      "fullcapture", "emptycapture", "emptycaptureidx", "opencapture",
-    "closecapture", "closeruntime", "open", "close", "choiceopen", "closecommit"
+    "closecapture", "closeruntime", "open", "close", "choiceopen", "closecommit",
+    "partialclosecommit"
   };
   printf("%02ld: %s ", (long)(p - op), names[p->i.code]);
   switch ((Opcode)p->i.code) {
@@ -320,7 +322,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
       break;
     }
     case IJmp: case ICall: case ICommit: case ICloseCommit:
-    case IPartialCommit: case IBackCommit: {
+    case IPartialCloseCommit: case IPartialCommit: case IBackCommit: {
       printjmp(op, p);
       break;
     }
@@ -667,6 +669,48 @@ static Stream *match (lua_State *L,
         p += p->i.offset;
         continue;
       }
+      case IPartialCloseCommit: {
+	switch(s->kind) {
+	  case Slist: {
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    lua_rawgeti(L, -1, s->u.l.cur);
+	    if(!lua_isnil(L, -1)) {
+	      lua_pop(L, 2); goto fail;
+	    }
+	    lua_pop(L, 2); break;
+	  }
+	  case Sstring: {
+	    if(s->u.s.s < s->u.s.e) { goto fail; }
+	    break;
+	  }
+	  default: goto fail;
+	}
+	(stack - 1)->s.u.l.cur++;
+	(stack - 1)->caplevel = captop;
+      	lua_rawgeti(L, plistidx(ptop), (stack - 1)->s.u.l.ref);
+	lua_rawgeti(L, -1, (stack - 1)->s.u.l.cur);
+	switch(lua_type(L, -1)) {
+	  case LUA_TTABLE: {
+	    s->kind = Slist;
+	    s->u.l.ref = luaL_ref(L, plistidx(ptop));
+	    s->u.l.cur = 1;
+	    break;
+	  }
+	  case LUA_TSTRING: {
+	    size_t siz;
+	    s->kind = Sstring;
+	    s->u.s.o = lua_tolstring(L, -1, &siz);
+	    lua_pop(L, 1);
+	    s->u.s.s = s->u.s.o;
+	    s->u.s.e = s->u.s.o + siz;
+	    break;
+	  }
+	  default: lua_pop(L, 2); goto fail;
+	}
+	p += p->i.offset;
+	lua_pop(L, 1);
+	continue;
+      }
       case IBackCommit: {
         assert(stack > stackbase);
         *s = (--stack)->s;
@@ -877,6 +921,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         backtop--;
         goto dojmp;
       }
+      case IPartialCloseCommit:
       case IPartialCommit: {
         assert(backtop > 0);
         if (p->i.offset > 0) goto dojmp;  /* forward jump */
