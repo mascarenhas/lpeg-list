@@ -294,7 +294,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
       break;
     }
     case IString: {
-      printf("\"%s\"", (p+1)->buff);
+      printf("\"%s\"", (p+2)->buff);
       break;
     }
     case IFullCapture: case IOpenCapture:
@@ -552,21 +552,28 @@ static Stream *match (lua_State *L,
       case IString: {
 	switch(s->kind) {
 	  case Sstring: {
-	    goto fail;
+	    condfailed(p); break;
 	  }
 	  case Slist: {
+	    int top = lua_gettop(L);
 	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
 	    lua_rawgeti(L, -1, s->u.l.cur);
-	    lua_pushlstring(L, (const char*)(p+1)->buff, (size_t)p->i.offset);
-	    if(lua_rawequal(L, -1, -2) == 0) {
-	      lua_pop(L, 3); goto fail;
+	    if((p+1)->i.aux == 0) {
+	      lua_pushlstring(L, (const char*)(p+2)->buff, (size_t)(p+1)->i.offset);
+	    } else {
+	      if(lua_type(L, -1) != LUA_TTABLE) { lua_settop(L, top); condfailed(p); break; }
+	      lua_rawgeti(L, -1, (p+1)->i.aux);
+	      lua_pushlstring(L, (const char*)(p+2)->buff, (size_t)(p+1)->i.offset);
 	    }
-	    lua_pop(L, 3);
+	    if(lua_rawequal(L, -1, -2) == 0) {
+	      lua_settop(L, top); condfailed(p); break;
+	    }
+	    lua_settop(L, top);
+	    if((p+1)->i.aux == 0) s->u.l.cur++;
 	    p += p->i.aux;
-	    s->u.l.cur++;
 	    break;
 	  }
-  	  default: { goto fail; }
+	  default: condfailed(p);
 	}
 	continue;
       }
@@ -1596,11 +1603,12 @@ static int pattlist_l (lua_State *L) {
   if(isstring(p1, l)) {
     int off;
     if(((l + 1) % sizeof(Instruction)) == 0)
-      off = (l + 1)/sizeof(Instruction) + 1;
-    else
       off = (l + 1)/sizeof(Instruction) + 2;
+    else
+      off = (l + 1)/sizeof(Instruction) + 3;
     op = newpatt(L, off);
-    setinstaux(op++, IString, l, off);
+    setinstaux(op++, IString, 0, off);
+    setinstaux(op++, IString, l, 0);
     fillstring(op, p1, l);
   } else {
     op = newpatt(L, 2 + l);
