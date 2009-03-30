@@ -278,7 +278,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
     "commit", "partial_commit", "back_commit", "failtwice", "fail", "giveup",
      "func",
      "fullcapture", "emptycapture", "emptycaptureidx", "opencapture",
-    "closecapture", "closeruntime", "open", "close", "string", "choiceopen", "closecommit"
+    "closecapture", "closeruntime", "open", "close", "string", "choiceopen", "closecommit",
     "partialclosecommit"
   };
   printf("%02ld: %s ", (long)(p - op), names[p->i.code]);
@@ -294,14 +294,15 @@ static void printinst (const Instruction *op, const Instruction *p) {
       break;
     }
     case IString: {
-      printf("\"%s\"", (p+2)->buff);
+      printf("\"%s\" (%d) ", (p+2)->buff, (p+1)->i.aux);
+      printjmp(op, p);
       break;
     }
     case IFullCapture: case IOpenCapture:
     case IEmptyCapture: case IEmptyCaptureIdx:
     case ICloseCapture: case ICloseRunTime: {
       printcapkind(getkind(p));
-      printf("(n = %d)  (off = %d)", getoff(p), p->i.offset);
+      printf("(n = %d)  (off = %d) ", getoff(p), p->i.offset);
       break;
     }
     case ISet: {
@@ -558,18 +559,18 @@ static Stream *match (lua_State *L,
 	    int top = lua_gettop(L);
 	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
 	    lua_rawgeti(L, -1, s->u.l.cur);
-	    if((p+1)->i.aux == 0) {
+	    if(p->i.offset == 0) {
 	      lua_pushlstring(L, (const char*)(p+2)->buff, (size_t)(p+1)->i.offset);
 	    } else {
 	      if(lua_type(L, -1) != LUA_TTABLE) { lua_settop(L, top); condfailed(p); break; }
-	      lua_rawgeti(L, -1, (p+1)->i.aux);
+	      lua_rawgeti(L, -1, (p+1)->i.aux + 1);
 	      lua_pushlstring(L, (const char*)(p+2)->buff, (size_t)(p+1)->i.offset);
 	    }
 	    if(lua_rawequal(L, -1, -2) == 0) {
 	      lua_settop(L, top); condfailed(p); break;
 	    }
 	    lua_settop(L, top);
-	    if((p+1)->i.aux == 0) s->u.l.cur++;
+	    if(p->i.offset == 0) s->u.l.cur++;
 	    p += p->i.aux;
 	    break;
 	  }
@@ -606,7 +607,7 @@ static Stream *match (lua_State *L,
 		stack++;
 		s->kind = Slist;
 		s->u.l.ref = luaL_ref(L, plistidx(ptop));
-		s->u.l.cur = 1;
+		s->u.l.cur = p->i.code == IChoiceOpen ? p->i.aux + 1 : 1;
 		p++;
 		break;
 	      }
@@ -976,7 +977,8 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
 	continue;
       }
       case IString: {
-        goto fail;
+	if(p->i.offset == 0) goto fail;
+        goto dojmp;
       }
       case IAny:
       case IChar:
@@ -1167,6 +1169,17 @@ static void optimizejumps (Instruction *p) {
   }
 }
 
+static void optimizechoiceopen (Instruction *p) {
+  assert(p->i.code == IChoiceOpen);
+  if ((p + 1)->i.code == IString) {
+    int lc = sizei(p + 1);
+    rotate(p, lc, 1);
+    assert(p->i.code == IString && (p + lc)->i.code == IChoiceOpen);
+    (p + lc)->i.aux = 1;
+    p->i.offset = (p + lc)->i.offset;
+    (p + lc)->i.offset -= lc;
+  }
+}
 
 static void optimizechoice (Instruction *p) {
   assert(p->i.code == IChoice);
@@ -1766,6 +1779,7 @@ static Instruction *basicUnion (lua_State *L, Instruction *p1, int l1,
       setinst(p, IChoiceOpen, l1); p += l1 - 1;
       setinst(p, ICloseCommit, 1 + l2); p++;
       addpatt(L, p, 2);
+      optimizechoiceopen(p - l1);
     } else {
       Instruction *p = auxnew(L, &op, size, 1 + l1 + 1 + l2);
       setinst(p++, IChoice, 1 + l1 + 1);
@@ -1914,6 +1928,7 @@ static void optionals (lua_State *L, int l1, int n) {
       setinst(p - 1, IPartialCloseCommit, 1);
     }
     setinst(p - 1, ICloseCommit, 1);  /* correct last commit */
+    optimizechoiceopen(op);
   } else {
     Instruction *op = newpatt(L, n*(l1 + 1) + 1);
     Instruction *p = op;
