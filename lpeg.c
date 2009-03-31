@@ -449,13 +449,8 @@ static Stream *match (lua_State *L,
   	  case Slist: {
 	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
 	    assert(lua_istable(L, -1));
-	    for(; n > 0; n--, s->u.l.cur++) {
-	      lua_rawgeti(L, -1, s->u.l.cur);
-	      if(lua_isnil(L, -1)) { lua_pop(L, 1); break; }
-	      else lua_pop(L, 1);
-	    }
-	    lua_pop(L, 1);
-	    if(n > 0) { condfailed(p); } else p++;
+	    if(n <= lua_objlen(L, -1) - s->u.l.cur + 1) { lua_pop(L, 1); p++; s->u.l.cur += n; }
+	    else { lua_pop(L, 1); condfailed(p); }
 	    break;
 	  }
 	default: condfailed(p);
