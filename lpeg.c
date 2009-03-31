@@ -123,7 +123,7 @@ static const byte opproperties[] = {
   /* ICloseRunTime */	ISCAPTURE | ISFENVOFF,
   /* IOpen */           0,
   /* IClose */          0,
-  /* IString */         ISCHECK
+  /* IString */         ISCHECK | ISFENVOFF
 };
 
 
@@ -196,7 +196,7 @@ typedef struct Capture {
 
 static int sizei (const Instruction *i) {
   if (hascharset(i)) return CHARSETINSTSIZE;
-  else if (i->i.code == IString) return i->i.aux;
+  else if (i->i.code == IString) return 2;
   else if (i->i.code == IFunc) return i->i.offset;
   else return 1;
 }
@@ -289,7 +289,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
       break;
     }
     case IString: {
-      printf("\"%s\"", (p+2)->buff);
+      printf("%d", (p+1)->i.offset);
       printjmp(op, p);
       break;
     }
@@ -541,12 +541,12 @@ static Stream *match (lua_State *L,
 	  case Slist: {
 	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
 	    lua_rawgeti(L, -1, s->u.l.cur);
-	    lua_pushlstring(L, (const char*)(p+2)->buff, (size_t)(p+1)->i.offset);
+	    lua_rawgeti(L, penvidx(ptop), (p+1)->i.offset);
 	    if(lua_rawequal(L, -1, -2) == 0) {
 	      lua_pop(L, 3); condfailed(p); break;
 	    }
 	    lua_pop(L, 3);
-	    p += p->i.aux;
+	    p += 2;
 	    s->u.l.cur++;
 	    break;
 	  }
@@ -1166,8 +1166,12 @@ static int addpatt (lua_State *L, Instruction *p, int p1idx) {
   if (corr != 0) {
     Instruction *px;
     for (px = p; px < p + sz; px += sizei(px)) {
-      if (isfenvoff(px) && px->i.offset != 0)
-        px->i.offset += corr;
+      if (isfenvoff(px)) {
+	if(px->i.code == IString)
+	  (px+1)->i.offset += corr;
+	else if(px->i.offset != 0)
+	  px->i.offset += corr;
+      }
     }
   }
   return sz;
@@ -1512,12 +1516,10 @@ static int isstring (Instruction *p, int psiz) {
   return 1;
 }
 
-static void fillstring(Instruction *op, Instruction *p, int psiz) {
+static void fillstring(luaL_Buffer *b, Instruction *p, int psiz) {
   int i;
-  char *s = (char *)op;
   for(i = 0; i < psiz; i++, p++)
-    s[i] = (char)p->i.aux;
-  s[psiz] = (char)0;
+    luaL_addchar(b, (char)p->i.aux);
 }
 
 static int pattlist_l (lua_State *L) {
@@ -1527,14 +1529,13 @@ static int pattlist_l (lua_State *L) {
   Instruction *p1 = getpatt(L, 1, &l);
   if(isstring(p1, l)) {
     int off;
-    if(((l + 1) % sizeof(Instruction)) == 0)
-      off = (l + 1)/sizeof(Instruction) + 2;
-    else
-      off = (l + 1)/sizeof(Instruction) + 3;
-    op = newpatt(L, off);
-    setinstaux(op++, IString, 0, off);
-    setinstaux(op++, IString, l, 0);
-    fillstring(op, p1, l);
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
+    fillstring(&b, p1, l);
+    luaL_pushresult(&b);
+    op = newpatt(L, 2);
+    setinst(op++, IString, 0);
+    setinst(op++, IString, value2fenv(L, lua_gettop(L) - 1));
   } else {
     op = newpatt(L, 2 + l);
     setinst(op++, IOpen, 0);
