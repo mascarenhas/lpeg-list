@@ -8,5 +8,5 @@ local p = m.L(s)
 local assert = assert
 
 return function ()
-	 assert(p:match{s, s, s, s, s, s, s, s, s, s})
+	 assert(p:match{ s })
        end
