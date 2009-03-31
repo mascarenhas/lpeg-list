@@ -520,11 +520,44 @@ This completes the proof of correctness of the transformation.
 \section{Optimizations}
 \label{sec:optimizations}
 
-This section presents some instructions we added to the parsing machine
-in order to get a more efficient implementation of list patterns.
-Figure~\ref{fig:optimization} shows the new set of instructions related
-to the matching of lists. 
+The previous section showed how to compile list patterns to our parsing machine, and proved the
+correctness of this compilation. In several cases, though, the compilation could be more efficient,
+avoiding unecessary pushs and pops on the machine's stack. This section shows another way
+to compile some list patterns by using a few extra instructions that we will define, generating
+more efficient programs.
 
+Figure~\ref{fig:optimizations} shows the instructions we are adding to the machine and their
+semantics. Let's start with a very common pattern, $\{ c_{1} \ldots c_{n} \}$, that is, a pattern that
+matches a list of $n$ characters. The current program for this pattern is an \texttt{Open} instruction
+followed by a sequence of \texttt{Char} instructions and a \textt{Close} instruction. We can now
+compile this pattern to a single \texttt{String} instruction with the string ``$c_{1} \ldots c_{2}$'' as its 
+argument.
+
+Another common pattern we can optimize is $\{ p_{1} \} / p_{2}$. The current program for this pattern
+has a \texttt{Open} instruction immediately following a \texttt{Choice} instruction, both pushing the
+same subject and position on the stack. We can combine these two instructions if we also combine the
+consecutive \texttt{Close} and \texttt{Commit} instructions, having this program:
+
+% program ChoiceOpen l1 / p1 / CloseCommit l2 / p2
+
+Consider what happens when $p_{1}$ fails and $p_{2}$ succeeds:
+
+% transition for case where p1 fails and p2 succeeds
+
+As you can see, the machine ends up in the same state as in the original program.
+
+A related optimization is for the pattern $\{ p \} *$. In \cite{dls:lpeg} the related pattern $p*$ compiles
+to a program stating with a \texttt{Choice} instruction followed by the compilation of $p$ and a \texttt{PartialCommit}
+instruction, which updates the top of the stack. Again, in compiling $\{ p \}*$ we will have an \texttt{Open} following
+a \texttt{Choice}, and we can combine them in a \texttt{ChoiceOpen} instruction if we combine \texttt{Close} and
+\texttt{PartialCommit} in a \texttt{PartialCloseCommit} instruction. Below is the sequence of transitions when $\{ p \}*$
+matches subject $s$ at position $i$, advancing to position $i+j$:
+
+% transitions for case where {p}* matches advancing to i+j
+
+Notice that \texttt{PartialCloseCommit} has to do change the current subject.
+
+% explain headfail
 
 %
 \begin{figure*}
@@ -548,57 +581,7 @@ to the matching of lists.
 \label{fig:optimization}
 \end{figure*}
 
-When we have a sequence of instructions which starts by pushing the current state
-of the machine on the stack and then tries to match a list, and ends with a
-\texttt{Commit} instruction, we can join the operations of \texttt{Choice} and
-\texttt{Open} into a single instruction \texttt{ChoiceOpen}. The same applies
-for the instructions \texttt{Close} and \texttt{Commit}, which are replaced by
-a \texttt{CloseCommit} instruction. We have the following equivalence between
-programs:
-%
-{
-%\small
-\begin{equation*}
-\begin{split}
-    {\tt Choice}  \twentyspaces \fivespaces &\\ 
-	{\tt Open}    \twentyspaces \fivespaces & {\tt ChoiceOpen}\\ 
-	\hdots        \tenspaces\;\; \equiv \tenspaces & \hdots\\
-	{\tt Close}   \twentyspaces \fivespaces & {\tt CloseCommit}  \\
-	{\tt Commit}  \twentyspaces \fivespaces &
-\end{split}
-\end{equation*}
-}
-%
-Now there is only instruction pushing an entry on the stack of the parsing machine,
-as well as there is only one instruction popping an entry from it.
-
-The \texttt{PartialCloseCommit} instruction was designed to improve the performance
-of a program which is a translation of the pattern $(\{p\})^*$. In this case, we
-have the following equivalence between programs:
-%
-{
-%\small
-\begin{equation*}
-\begin{split}
-    {\tt Choice}         \twentyspaces \fivespaces &\\ 
-	{\tt Open}           \twentyspaces \fivespaces & {\tt ChoiceOpen}\\ 
-	\Pi(g,i,p)           \tenspaces\; \equiv \tenspaces & \Pi(g,i,p)\\
-	{\tt Close}          \twentyspaces \fivespaces & {\tt PartialCloseCommit}  \\
-	{\tt PartialCommit}  \twentyspaces \fivespaces &
-\end{split}
-\end{equation*}
-}
-%
-Another optimization can be done when the elements of a list are single characters.
-In such case, if we have a list pattern like $\{\chmath{a}\} \; \{\chmath{b}\} \; \{\chmath{c}\}$,
-the associated program will consist of a sequence of $Open-Char-Close$ instructions, i.e., we
-change the current subject of the machine, try to match a given character, then we restore
-the subject, and do the same steps again, until a failure happen when matching a character
-or the whole list be consumed.
-
-We can optimize this sequence of instructions by putting just a single $Open-Close$ pair enclosing
-all the $Char$ instructions.
-
+% optimization benchmarks
 
 \section{Captures}
 \label{sec:captures}
