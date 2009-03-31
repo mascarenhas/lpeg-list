@@ -1,14 +1,26 @@
 
 local m = require "listlpeg"
 
-local s1 = "abcdefghijklmnopqrstuvwxyz"
-local s2 = "zyxwvutsrqdonmlkjihgfedcba"
-local s3 = s1 .. s2
+local function rands(size)
+  local digits = {}
+  for i = 1, size do digits[i] = string.byte("a") + math.random(26) - 1 end
+  return string.char(unpack(digits))
+end
 
-local p = m.L(s1) + m.L(s2) + m.L(s3)
+local subjects = { rands(20) }
+
+local p = m.L(subjects[1])
+
+for i = 2, 20 do 
+  subjects[i] = rands(20) 
+  p = p + m.L(subjects[i])
+end
 
 local assert = assert
 
 return function ()
-	 assert(p:match{ s1 } and p:match{ s2 } and p:match{ s3 })
+	 for i = 1, 20 do 
+	   assert(p:match{ subjects[i] }) 
+	 end
        end
+
