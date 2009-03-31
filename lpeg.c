@@ -123,7 +123,7 @@ static const byte opproperties[] = {
   /* ICloseRunTime */	ISCAPTURE | ISFENVOFF,
   /* IOpen */           0,
   /* IClose */          0,
-  /* IString */         0
+  /* IString */         ISCHECK
 };
 
 
@@ -289,7 +289,8 @@ static void printinst (const Instruction *op, const Instruction *p) {
       break;
     }
     case IString: {
-      printf("\"%s\"", (p+1)->buff);
+      printf("\"%s\"", (p+2)->buff);
+      printjmp(op, p);
       break;
     }
     case IFullCapture: case IOpenCapture:
@@ -536,22 +537,20 @@ static Stream *match (lua_State *L,
       }
       case IString: {
 	switch(s->kind) {
-	  case Sstring: {
-	    goto fail;
-	  }
+	  case Sstring: { condfailed(p); break; }
 	  case Slist: {
 	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
 	    lua_rawgeti(L, -1, s->u.l.cur);
-	    lua_pushlstring(L, (const char*)(p+1)->buff, (size_t)p->i.offset);
+	    lua_pushlstring(L, (const char*)(p+2)->buff, (size_t)(p+1)->i.offset);
 	    if(lua_rawequal(L, -1, -2) == 0) {
-	      lua_pop(L, 3); goto fail;
+	      lua_pop(L, 3); condfailed(p); break;
 	    }
 	    lua_pop(L, 3);
 	    p += p->i.aux;
 	    s->u.l.cur++;
 	    break;
 	  }
-  	  default: { goto fail; }
+	  default: { condfailed(p); }
 	}
 	continue;
       }
@@ -905,9 +904,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
 	p++;
 	continue;
       }
-      case IString: {
-        goto fail;
-      }
+      case IString:
       case IAny:
       case IChar:
       case ISet: {
@@ -1234,7 +1231,7 @@ static void fillcharset (Instruction *p, Charset cs) {
 */
 
 static enum charsetanswer tocharset (Instruction *p, CharsetTag *c) {
-  if (ischeck(p)) {
+  if (ischeck(p) && p->i.code != IString) {
     fillcharset(p, c->cs);
     if ((p + sizei(p))->i.code == IEnd && op_step(p) == 1)
       c->tag = ISCHARSET;
@@ -1531,11 +1528,12 @@ static int pattlist_l (lua_State *L) {
   if(isstring(p1, l)) {
     int off;
     if(((l + 1) % sizeof(Instruction)) == 0)
-      off = (l + 1)/sizeof(Instruction) + 1;
-    else
       off = (l + 1)/sizeof(Instruction) + 2;
+    else
+      off = (l + 1)/sizeof(Instruction) + 3;
     op = newpatt(L, off);
-    setinstaux(op++, IString, l, off);
+    setinstaux(op++, IString, 0, off);
+    setinstaux(op++, IString, l, 0);
     fillstring(op, p1, l);
   } else {
     op = newpatt(L, 2 + l);
