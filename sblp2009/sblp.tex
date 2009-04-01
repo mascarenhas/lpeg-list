@@ -21,6 +21,7 @@
 \newcommand{\Matchrec}[5]{\mathrm{match} \;\, #1\;#2\;#3\;#4\;#5}
 \newcommand{\Nothing}{{\tt fail}}
 \newcommand{\Just}[1]{\mbox{#1}}
+\newcommand{\Justc}[2]{(\mbox{#1},\,#2)}
 \newcommand{\Striple}[3]{(#1,\,#2,\,#3)}
 \newcommand{\Sstate}[4]{\langle#1,\,#2,\,#3,\,#4\rangle}
 \newcommand{\Sstatec}[5]{\langle#1,\,#2,\,#3,\,#4,\,#5\rangle}
@@ -28,7 +29,7 @@
 \newcommand{\Sstep}[4]{#1 & \xrightarrow{#2} & #3 & #4\\}
 \newcommand{\Sstepp}[4]{#1 \xrightarrow{#2} #3\\}
 \newcommand{\Ia}[2]{\mbox{{\scriptsize {\tt #1} $#2$}}}
-\newcommand{\Iaa}[3]{\mbox{{\tt #1} $#2$ $#3$}}
+\newcommand{\Iaa}[3]{\mbox{{\scriptsize {\tt #1} $#2$ $#3$}}}
 \newcommand{\Fail}{\mbox{\bf Fail}}
 \newcommand{\Hd}[1]{\mbox{hd}(#1)}
 \newcommand{\Sub}{{s}}
@@ -57,8 +58,10 @@
 \newcommand{\Cfunc}[1]{\mathrm{Cfunc} \; #1}
 \newcommand{\Cfold}[1]{\mathrm{Cfold} \; #1}
 \newcommand{\Cclose}[1]{\mathrm{Cclose} \; #1}
-\newcommand{\Empty}{\{\}}
-
+\newcommand{\Emptyl}{\{\}}
+\newcommand{\Mapl}{map_{s \rightarrow l}}
+\newcommand{\Pcap}[2]{\langle#1,\,#2\rangle}
+\newcommand{\Pcapp}[3]{\langle#1,\,#2,\,#3\rangle}
 
 \newtheorem{proposition}{Proposition}
 
@@ -153,7 +156,7 @@ related work and presents a benchmark comparing LPEG with OMeta; finally,
 Section~\ref{sec:conclusions} summarizes our results.
 
 
-\section{A Parsing Machine for PEGs}
+\section{Extending PEGs with Lists}
 \label{sec:machine}
 
 In~\cite{dls:lpeg}, we have described a \texttt{match} relation for PEGs, 
@@ -163,58 +166,83 @@ Given a PEG grammar, a pattern, a subject and a position (position $1$ indicates
 if the match succeeds, the relation gives us the position of the subject after the match,
 otherwise, if the match fails, it gives us the result \emph{\Nothing}.
 
-We are going to define a new relation $\texttt{match}_L$, which extends the \texttt{match} relation and
-can also operate on lists. The elements of a list are either a string or another list. Considering that
-$Stream = List \cup \Sigma^{*}$, the new $\texttt{match}_L$ relation is defined as:
-$\mathrm{Grammar} \times \mathrm{Pattern} \times Stream \times \mathcal{N} \times (\mathcal{N} \cup \{\Nothing\})$.
+We are going to define a new relation $\texttt{match}_L$, which operates on lists.
+An empty list is represented as \Emptyl. Given a character $\chmath{c}$, and a list
+$l$, by using the $cons$ operator we can build a new list $l^\prime$, which is a list
+whose head is $\chmath{c}$, and whose tail is $l$. Given two lists $l_1$ and $l_2$,
+we can also use the $cons$ operator to build a new list $l^\prime$, which is a list
+whose head is $l_1$, and whose tail is $l_2$. 
+
+%We have that Below there is an example of a list,
+%where its elements are separated by commas: \\
+%\begin{math}
+%\{\chmath{a}, {\chmath{b}}, {\chmath{c}, \chmath{d}}, \chmath{e}\}
+%\end{math}
+
+The length of a list $l$, which we will represent as $|l|$, is the number of elements
+of $l$. The empty list has length $0$, and a nonempty list $l$ has length $1$ plus the
+length of its tail. If $h$ and $t$ are respectively the head and the tail of a list $l$,
+we can represent $l$ as $h:t$. We can concatenate two lists by using the operator $++$. 
+
+We will then define $\texttt{match}_L$ as a relation
+$\mathrm{Grammar} \times \mathrm{Pattern} \times \mathrm{List} \times \mathcal{N} \times (\mathcal{N} \cup \{\Nothing\})$.
 We will use the notation
 $\Matchl{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in \texttt{match}_L$.
-Figure~\ref{fig:semgr} presents the complete operational semantics of $\texttt{match}_L$.
-%If a match succeeds, the result is the position in the subject after the match,
-%otherwise, the result is \Nothing.
+Table~\ref{tab:patterns} presents the abstract syntax of PEG patterns with lists, and Figure~\ref{fig:semgr} presents
+the complete operational semantics of $\texttt{match}_L$.
+If a match succeeds, the result is the position in the subject after the match,
+otherwise, the result is \Nothing.
 All rules are also present in the semantics of \texttt{match}, the exception being
-rules $any.3$, $list.1$, and $list.2$, which are list-specific.
+rules $list.1$, and $list.2$, which are list-specific.
 
-Rules $ch.1$ and $ch.2$ deal with the case where the
-pattern is a single terminal $a$. Rules $any.1$
-and $any.2$ deal with the case where we try to
-match any terminal. These rules only succeed
-when the current subject is a string.
+%
+\begin{table}
+\centering
+\begin{tabular}{|c|} \hline
+\chmath{.}            $\in$ Pattern  \\ %\hline
+\chmath{c}            $\in$ Pattern  \\ %\hline
+If $p$   $\in$ Pattern then      
+  $p^*$, $!p$, $\&p$, and $\{p\}$  $\in$ Pattern \\ %\hline	
+If $p_{1}$ and $p_{2}$ $\in$ Pattern then
+ $p_{1}p_{2}$ and $p_{1}/p_{2}$ $\in$ Pattern \\ \hline
+\end{tabular}
+\caption{Syntax of PEG patterns}
+\label{tab:patterns}
+\end{table}
+%
 
-Rules $not.1$ and $not.2$ deal with the not predicate.
-If a pattern $p$ fails then $!p$ succeeds, and if $p$ succeeds then
-$!p$ fails. 
 
-Rules $and.1$ and $and.2$ deal with the and predicate. If $p$
-succeeds then $\&p$ succeeds, and if $p$ fails then
-$\&p$ fails. A predicate $\&p$ can be written as $!!p$.
 
-In case of a concatenation of two patterns $p_1$ and $p_2$, 
-if both patterns succeed, the concatenation also succeeds (rule $con.1$).
-If either $p_{1}$ or $p_{2}$ fail (rules $con.3$ and $con.2$, respectively),
-the concatenation fails too.
+Rule $list.1$ deals with the successful matching of a list
+element, while rule $list.2$ deals with the case of an
+unsuccessful matching of a list element.
+When trying to match an element of a list, the matching only
+succeeds when we can match the given element completely.
+If the matching of an element succeeds, the current position
+in the the subject is advanced.
 
-In case of an ordered choice involving patterns $p_1$ and $p_2$,
-if the matching of $p_1$ succeeds, then the whole pattern succeeds
-(rule $ord.2$). Otherwise, if the matching of $p_2$ succeeds, the
-whole pattern succeeds too (rule $ord.3$). If both matchings fail,
-the whole pattern fails (rule $ord.1$).
 
-Rules $rep.1$ and $rep.2$ deal with repetition. A pattern $p^*$ tries
-to match $p$ zero or more times.
+We can establish a direct relation between \texttt{match} and
+$\texttt{match}_L$ with the help of an auxiliary function $\Mapl$,
+which converts a string to a list. Given a string $s$, we have
+that $\Mapl(s)$ gives us a list $l$ where the first element of
+$l$ is the first character of $s$, the second element of $l$
+is the second character of $s$, and so on. Then, we are going
+to state the following proposition:
 
-Rules $var.1$ and $var.2$ deal with the case where the pattern is a
-single nonterminal. They substitute a nonterminal by the associated pattern.
 
-Rules $cg.1$ and $cg.2$ deal with closed grammars. A \emph{closed grammar} is a pair $\mathrm{Grammar} \times
-V$. Informally, a closed grammar matches a subject if the pattern referenced by the variable matches the subject,
-with all variables resolved in the grammar. Closed grammars build patterns from grammars, and allows
-different grammars to be composed using the standard PEG operators. 
+\begin{proposition}
+\label{prop:match}
+$\Matchf{G}{p}{s}{i} \leadsto j$ iff $\Matchl{G}{p}{\Mapl(s)}{i}$.
+\end{proposition}
 
-Finally, rules $list.1$ and $list.2$ deal with the matching of a list. When trying to match
-an element of a list, the matching only succeeds when we can match the given element completely,
-otherwise the matching fails. If the matching of an element succeeds, the position of the current
-element of the subject is incremented.
+\begin{proof}
+The proof is an induction on the height of the proof tree given by
+\texttt{match}. As there is a straightforward relationship between the
+rules of the operational semantics of \texttt{match} and the corresponding
+rules in the semantics of $\texttt{match}_L$, the proof becomes trivial.
+\end{proof}
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -224,7 +252,7 @@ element of the subject is incremented.
 
 \begin{figure*}
 {
-\small
+\footnotesize
 \begin{align*}
 %Matching a given character
 & \textbf{Matching a character} \tenspaces 
@@ -232,9 +260,8 @@ element of the subject is incremented.
 {\frac{s[i] \neq \chmath{c}}{\Matchl{g}{\chmath{c}}{s}{i} \leadsto \Nothing}} \mylabel{ch.2} \\ \\
 %Matching any character
 & \textbf{Matching any character} \tenspaces
-{\frac{s[i] \in T \interf i \leq |s|}{\Matchl{g}{.}{s}{i} \leadsto \Just{i+1}}} \mylabel{any.1} \\ \\
-& \tenspaces {\frac{i > |s|}{\Matchl{g}{.}{s}{i} \leadsto \Nothing}} \mylabel{any.2} \tenspaces
-{\frac{s[i] \notin T}{\Matchl{g}{.}{s}{i} \leadsto \Nothing}} \mylabel{any.3} \\ \\
+{\frac{i \leq |s|}{\Matchl{g}{.}{s}{i} \leadsto \Just{i+1}}} \mylabel{any.1} \tenspaces
+& \tenspaces {\frac{i > |s|}{\Matchl{g}{.}{s}{i} \leadsto \Nothing}} \mylabel{any.2} \\ \\
 %Not
 & \textbf{Not Predicate} \tenspaces \fivespaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing} 
@@ -287,14 +314,16 @@ element of the subject is incremented.
 & \textbf{Matching a List} \tenspaces
 {\frac{\Matchl{g}{p}{s[i]}{1} \leadsto |s[i]| + 1}
 	{\Matchl{g}{\{p\}}{s}{i} \leadsto \Just{i+1}}} \mylabel{list.1} \tenspaces
-{\frac{\Matchl{g}{p}{s[i]}{1} \neq |s[i] + 1}
+{\frac{\Matchl{g}{p}{s[i]}{1} \neq |s[i]| + 1}
 	{\Matchl{g}{\{p\}}{s}{i} \leadsto \Nothing}} \mylabel{list.2}
 \end{align*}
-\caption{Operational Semantics of PEG Patterns with Grammars}
+\caption{Operational Semantics of PEGs with Lists}
 \label{fig:semgr}
 }
 \end{figure*}
 
+
+\subsection{Parsing Machine}
 
 In LPEG, our implementation of PEGs, each PEG pattern translates to a program,
 which executes on a virtual parsing machine. The parsing machine has a state,
@@ -341,24 +370,25 @@ for the position and the subject. If the current position does not point to the
 end of the subject, a failure occurs. Otherwise, the position in the subject is advanced.
 
 Figure~\ref{fig:semantics} presents the operational semantics of the parsing
-machine as a relation among machine states. The program $\mathcal{P}$ that the
+machine as a relation between machine states. The program $\mathcal{P}$ that the
 machine is executing is implicit. The state
-is either a tuple $\mathcal{N} \times \mathrm{T}^* \times \mathcal{N} \times \mathrm{Stack}$,
+is either a tuple $\mathcal{N} \times \mathrm{List} \times \mathcal{N} \times \mathrm{Stack}$,
 containing the next instruction to execute (\emph{pc}), the current subject (\emph{s}),
 the current position in the subject (\emph{i}), and a stack (\emph{e}), or $\Sfail{e}$,
 a failure state with stack \emph{e}. Stacks are lists of
-$(\mathcal{N} \times \mathrm{T}^* \times \mathcal{N}) \cup (\mathrm{T}^* \times \mathcal{N})
-\cup \mathcal{N}$, where a stack position of form $\mathcal{N} \times \mathrm{T}^* \times \mathcal{N}$
-represents a backtrack entry, a stack position of form $\mathrm{T}^* \times \mathcal{N}$ represents
+$(\mathcal{N} \times \mathrm{List} \times \mathcal{N}) \cup (\mathrm{List} \times \mathcal{N})
+\cup \mathcal{N}$, where a stack position of form $\mathcal{N} \times \mathrm{List} \times \mathcal{N}$
+represents a backtrack entry, a stack position of form $\mathrm{List} \times \mathcal{N}$ represents
 a list entry, and a stack position of form $\mathcal{N}$ represents a return address.
 
 The relation $\xrightarrow{\mathrm{Instruction}}$ relates two states when the instruction
 addressed by \emph{pc} in the antecedent state matches the label, and the guard (if present)
-is valid. The transitive closure of this relation is an execution of the machine. 
+is valid.
+%The transitive closure of this relation is an execution of the machine. 
 %
 \begin{figure*}
 {
-\small
+\footnotesize
 \[
 \begin{array}{rlll}
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Char}{x}}%
@@ -366,9 +396,9 @@ is valid. The transitive closure of this relation is an execution of the machine
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Char}{x}}%
       {\Sfail{e}}{\Subi\not=x}
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Any}{}}%
-      {\Sstate{pc+1}{s}{i+1}{e}}{i+1 \leq |\Sub| \;and\; s[i] \in T}
+      {\Sstate{pc+1}{s}{i+1}{e}}{i+1 \leq |\Sub|}
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Any}{}}%
-      {\Sfail{e}}{i+1 > |\Sub| \;or\; s[i] \notin T}
+      {\Sfail{e}}{i+1 > |\Sub|}
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Choice}{l}}%
       {\Sstate{pc+1}{s}{i}{(pc+l,s,i):e}}{}
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Jump}{l}}%
@@ -427,28 +457,15 @@ means the number of instructions of the program $\Pi(g,i,p)$.
 
 The correctness of this transformation has already been proved
 for the \texttt{match} relation. As this transformation
-remains the same after the addition of lists (we just need
-to prove the extra case corresponding to rules $list.1$
-and $list.2$), we are going to prove the correspondence
-between \texttt{match} and $\texttt{match}_L$, in order
-to carry the previous proof of the transformation for
-the realm of $\texttt{match}_L$.
+remains the same after the addition of lists, and we have
+already proved Proposition~\ref{prop:match}, we just need
+to prove the extra cases corresponding to rules $list.1$
+and $list.2$ to prove that this transformation is also correct
+for $\texttt{match}_L$.
 
-\begin{proposition}
-$\Matchf{G}{p}{s}{i} \leadsto j$ iff $\Matchl{G}{p}{s}{i}$.
-\end{proposition}
-
-\begin{proof}
-The proof is an induction on the height of the proof tree. As the
-operational semantics of $\texttt{match}_L$ has all rules of the
-semantics of \texttt{match}, with the same meaning, the proof becomes
-trivial.
-\end{proof}
-
-Now, we are going to show the transformation for a list pattern and
-prove its correctness. Given a PEG grammar $g$, a position $i$ relative
-to the beginning of the grammar, and a pattern $\{p\}$, we have the
-following transformation from pattern to the virtual machine instructions:
+Given a PEG grammar $g$, a position $i$ relative to the beginning of the grammar,
+and a pattern $\{p\}$, we have the following transformation from pattern to the
+virtual machine instructions:
 %
 \begin{equation*}
 \begin{split}
@@ -462,6 +479,7 @@ following transformation from pattern to the virtual machine instructions:
 The transformation for a list pattern $\{p\}$ just puts a pair of instructions \texttt{Open-Close}
 around the pattern $p$.
 
+The proof is an induction on the height of the proof tree given by the semantics of $\texttt{match}_L$.
 What we are going to prove first is:
 %
 \begin{equation*}
@@ -486,8 +504,13 @@ We have the following sequence of transitions:
 	{\Sstate{pc + |\Pi(g,i,p)| + 2}{s}{i+1}{e}}
 \end{align*}
 %
-We can see that neither the current subject position nor the
-stack changed after the execution of $\Pi(g, i, \{p\})$.
+After the \texttt{Open} instruction, the subject becomes
+$s[i]$, and the current position is $1$. By induction
+we know the execution of $\Pi(g, i+1, p)$ leads to
+$\Sstate{pc + |\Pi(g,i,p)| + 1}{s[i]}{|s[i]|+1}{(s, i):e}$,
+and after the \texttt{Close} instruction we reach the final
+state $\Sstate{pc + |\Pi(g,i,p)| + 2}{s}{i+1}{e}$.
+
 
 We also need to prove that:
 %
@@ -502,19 +525,24 @@ We also need to prove that:
 This case is related to the semantic rule $list.2$,
 where the matching of element $i$ of a list
 failed or did not match the element entirely.
-If the matching of $p$ fails, we have the
-following sequence of transitions:
+Considering $n^\prime < |s[i]|+1$,  if the
+matching of $p$ succeeds and results in $n^\prime$,
+we have the following sequence of transitions:
 %
 \begin{align*}
 \xrightarrow{Open} \; &
 	{\Sstate{pc + 1}{s[i]}{1}{(s, i):e}} \\
-\xrightarrow{\Pi(g, i, p)} \; &
+\xrightarrow{\Pi(g, i+1, p)} \; &
+	{\Sstate{pc + |\Pi(g,i,p)| + 1}{s[i]}{n^\prime}{(s, i):e}} \\
+\xrightarrow{Close} \; &
 	{\Sfail{e}}{}
 \end{align*}
 %
-There is also the case of an incomplete match, when a failure
-occurs when executing the \texttt{Close} instruction.
-This completes the proof of correctness of the transformation.
+As $n^\prime < |s[i]|+1$ the execution of the \texttt{Close}
+instruction leads the machine to a failure state.
+
+There is also the case where the matching of $p$ fails, leading
+the machine to a failure state $\Sfail{e}$ too.
 
 
 \section{Optimizations}
@@ -529,47 +557,33 @@ more efficient programs.
 Figure~\ref{fig:optimizations} shows the instructions we are adding to the machine and their
 semantics. Let's start with a very common pattern, $\{ c_{1} \ldots c_{n} \}$, that is, a pattern that
 matches a list of $n$ characters. The current program for this pattern is an \texttt{Open} instruction
-followed by a sequence of \texttt{Char} instructions and a \textt{Close} instruction. We can now
+followed by a sequence of \texttt{Char} instructions and a \texttt{Close} instruction. We can now
 compile this pattern to a single \texttt{String} instruction with the string ``$c_{1} \ldots c_{2}$'' as its 
 argument.
 
-Another common pattern we can optimize is $\{ p_{1} \} / p_{2}$. The current program for this pattern
-has a \texttt{Open} instruction immediately following a \texttt{Choice} instruction, both pushing the
-same subject and position on the stack. We can combine these two instructions if we also combine the
-consecutive \texttt{Close} and \texttt{Commit} instructions, having this program:
-
-% program ChoiceOpen l1 / p1 / CloseCommit l2 / p2
-
-Consider what happens when $p_{1}$ fails and $p_{2}$ succeeds:
-
-% transition for case where p1 fails and p2 succeeds
-
-As you can see, the machine ends up in the same state as in the original program.
-
-A related optimization is for the pattern $\{ p \} *$. In \cite{dls:lpeg} the related pattern $p*$ compiles
-to a program stating with a \texttt{Choice} instruction followed by the compilation of $p$ and a \texttt{PartialCommit}
-instruction, which updates the top of the stack. Again, in compiling $\{ p \}*$ we will have an \texttt{Open} following
-a \texttt{Choice}, and we can combine them in a \texttt{ChoiceOpen} instruction if we combine \texttt{Close} and
-\texttt{PartialCommit} in a \texttt{PartialCloseCommit} instruction. Below is the sequence of transitions when $\{ p \}*$
-matches subject $s$ at position $i$, advancing to position $i+j$:
-
-% transitions for case where {p}* matches advancing to i+j
-
-Notice that \texttt{PartialCloseCommit} has to do change the current subject.
-
-% explain headfail
-
 %
 \begin{figure*}
-{\small
+{\footnotesize
 \[
 \begin{array}{rlll}
+\Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{String}{x}}%
+      {\Sstate{pc+1}{s}{i+1}{e}}{s[i] = \Mapl(x)}
+\Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{String}{x}}%
+      {\Sfail{e}}{s[i] \neq \Mapl(x)}
+\Sstep{\Sstate{pc}{s}{i}{e}}{\Iaa{TestString}{l}{x}}%
+      {\Sstate{pc+1}{s}{i+1}{e}}{s[i] = \Mapl(x)}
+\Sstep{\Sstate{pc}{s}{i}{e}}{\Iaa{TestString}{l}{x}}%
+      {\Sstate{pc+l}{s}{i}{e}}{s[i] \neq \Mapl(x)}
+\Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{NotAny}{}}%
+      {\Sstate{pc+1}{s}{i}{e}}{i = |s|+1}
+\Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{NotAny}{}}%
+      {\Sfail{e}}{i \neq |s|+1}
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{ChoiceOpen}{l}}%
       {\Sstate{pc+1}{\Subi}{1}{(pc+l,s,i):e}}{}
-\Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{CloseCommit}{l}}%
-      {\Sstate{pc+l}{s_1}{i_1+1}{e}}{i=|\Sub[i_1]|+1}
-\Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{CloseCommit}{l}}%
-      {\Sstate{pc_1}{s_1}{i_1}{e}}{i\neq|\Sub[i_1]|+1}
+%\Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{CloseCommit}{l}}%
+%      {\Sstate{pc+l}{s_1}{i_1+1}{e}}{i=|\Sub[i_1]|+1}
+%\Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{CloseCommit}{l}}%
+%      {\Sstate{pc_1}{s_1}{i_1}{e}}{i\neq|\Sub[i_1]|+1}
 \Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{PartialCloseCommit}{l}}%
       {\Sstate{pc+l}{s_1[i_1+1]}{1}{(pc_1,s_1,i_1+1):e}}{i=|\Sub[i_1]|+1}
 \Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{PartialCloseCommit}{l}}%
@@ -581,6 +595,135 @@ Notice that \texttt{PartialCloseCommit} has to do change the current subject.
 \label{fig:optimization}
 \end{figure*}
 
+
+%Another common pattern we can optimize is $\{ p_{1} \} / p_{2}$. The current program for this pattern
+%has a \texttt{Open} instruction immediately following a \texttt{Choice} instruction, both pushing the
+%same subject and position on the stack. We can combine these two instructions if we also combine the
+%consecutive \texttt{Close} and \texttt{Commit} instructions, having this program:
+
+% program ChoiceOpen l1 / p1 / CloseCommit l2 / p2
+
+%Consider what happens when $p_{1}$ fails and $p_{2}$ succeeds:
+
+% transition for case where p1 fails and p2 succeeds
+
+%As you can see, the machine ends up in the same state as in the original program.
+
+A related optimization is for the pattern $\{ p \}^*$. In \cite{dls:lpeg} the related pattern $p^*$ compiles
+to a program starting with a \texttt{Choice} instruction followed by the compilation of $p$ and a \texttt{PartialCommit}
+instruction, which updates the top of the stack. When compiling $\{ p \}^*$ we will have an \texttt{Open} following
+a \texttt{Choice} instruction, and we can combine them in a \texttt{ChoiceOpen} instruction if we combine the ending
+\texttt{Close} and \texttt{PartialCommit} instructions in a single \texttt{PartialCloseCommit} instruction, which
+updates the stack and changes the subject and the current position. Below is the sequence of transitions when $\{ p \}^*$
+matches subject $s$ at position $i$, advancing to position $i+j$:
+%
+% transitions for case where {p}* matches advancing to i+j
+%
+\begin{align*}
+\xrightarrow{ChoiceOpen} \; &
+	{\Sstate{pc + 1}{s[i]}{1}{(pc + |\Pi(g,x,p)| + 2, s,i):e}} \\
+\xrightarrow{\Pi(g,x+1,p)} \; &
+	{\Sstate{pc + |\Pi(g,x,p)| + 1}{s}{i + j}{(pc + |\Pi(g,x,p)| + 2, s,i):e}} \\
+\xrightarrow{PartialCloseCommit} \; &
+	{\Sstate{pc + 1}{s[i+1]}{1}{(pc + |\Pi(p)| + 2, s,i + 1):e}}  \\
+\xrightarrow{\Pi(g,x+|\Pi(g,x,p)|+2,\{p\}^*)} \; &
+	{\Sstate{pc + |\Pi(g,x,\{p\}^*)|}{s}{i + j}{e}}
+\end{align*}
+%
+Notice that \texttt{PartialCloseCommit} has to change the current subject.
+
+Another optimization we can do is related to \emph{head fail}s. A head fail occurrs when the matching
+of a pattern fails right in the beginning of a subject. This kind of failure is very common when we
+have a pattern like $\{ c_{1} \ldots c_{n} \}$. Therefore, when matching a pattern like
+$\{ c_{1} \ldots c_{n} \} p_1 / p_2$, it is somewhat expensive to push a backtrack entry that will be
+most of the time discarded when trying to match character $c_{1}$. To avoid the cost of pushing this
+entry and discarding it just after, we will use the \texttt{TestString} instruction, which is similar to
+\texttt{String}, but also receives a label to jump in case of a failure. Now, we have the following transformation:
+%
+\begin{equation*}
+\begin{split}
+\Pi(g,x, \{c_{1} \ldots c_{n} \} p_1 / p_{2}) \equiv \;
+	&{\tt TestString} \; |\Pi(g,x,p_{1})| + 3 \;\; c_1 \ldots c_n  \\
+	&{\tt Choice} \; |\Pi(g,x,p_{1})| + 2 \;\;\; 1\\
+	&\Pi(g,x+2,p_{1})\\
+	&{\tt Commit } \; |\Pi(g,x,p_{2})| + 1\\
+	&\Pi(g,x+|\Pi(g,x,p_1)|+3,p_{2})
+\end{split}
+\end{equation*}
+%
+Notice that now the \texttt{Choice} instruction needs an offset, now
+when pushing a backtrack entry, this instruction saves the current
+subject position minus a given offset. All the previous use of
+\texttt{Choice} have an offset of zero. We will omit this offset
+when its value is zero.
+
+In case of an unsuccessful matching of $\{c_1 \ldots c_n\}$ and a successful
+matching of $p_2$, we have the following sequence of transitions:
+\begin{align*}
+\xrightarrow{TestString} &
+	{\Sstate{pc + |\Pi(g,x,p_{1})| + 3}{s}{i}{e}} \\
+\xrightarrow{\Pi(g,x+|\Pi(g,x,p_1)|+3,p_{2})} &
+    {\Sstate{pc + |\Pi(g,x, \{c_1 \dots c_n \} p_1 / p_2)|}{s}{i+k}{e}}
+\end{align*}
+
+Finally, there is an optimization related to the ordered choice of lists which
+involves the creation of a new instruction for the machine and also requires some
+pattern transformation. If we have a pattern like $\{p_1\} / \{p_2\}$, and $p_1$ fails,
+we need first to restore the subject and the position, and right after we need to
+change them again to try the matching of $p_2$. As an \texttt{Open} instruction is
+expensive, it is more efficient to generate code for an equivalent pattern, which
+does less changes in the subject.
+
+A first tought would be translate $\{p_1\} / \{p_2\}$ to $\{ p_1 / p_2 \}$. When $p_1$
+fails, both pattern are equivalents. But if there is an intersection between the subjects
+reconized by $p_1$, and those reconized by $p_2$, then the patterns are not equivalent
+when $p_1$ succeeds. In such situation, if $p_1$ and $p_2$ succeed when matching a subject
+$s$, where $p_2$ matches the whole subject, while $p_1$ does not, we have pattern
+$\{p_1\} / \{p_2\}$ will succeed, while pattern $\{ p_1 / p_2 \}$ will fail.
+
+To deal with this situation, instead of matching just $p_1$, we need to match $p_1 !.$.
+Doing this way, we guarantee that if $p_1$ does not match the subject entirely, we
+always try to match $p_2$. Instead of doing an usual transformation for the pattern
+$!.$, we will create a specific instruction \texttt{NotAny}, which executes faster
+than the trivial code. The transformation is given below:
+%
+\begin{equation*}
+\begin{split}
+\Pi(g, x, \{ p_1 !. / p_2\}) \equiv \;
+	&{\tt Open} \;  \\
+	&{\tt Choice} \; |\Pi(g,x,p_1)| + 3 \\
+	&\Pi(g, x+2, p_1)\\
+	&{\tt NotAny } \; \\
+	&{\tt Commit } \; |\Pi(g,x,p_2)| + 1\\
+	&\Pi(g, x + |\Pi(g,x,p_1)| + 4, p_2) \\
+	&{\tt Close} \; 
+\end{split}
+\end{equation*}
+%
+In case of $p_1$ succeeding, without matching the whole input, and $p_2$
+succeeding, matching the whole input, we have the following sequence of
+transitions, where $n^\prime < |s[i]| + 1$:
+%
+\begin{align*}
+\xrightarrow{Open} \; &
+	{\Sstate{pc + 1}{s[i]}{1}{(s,i):e}} \\
+\xrightarrow{Choice} \; &
+	{\Sstate{pc + 2}{s[i]}{1}{(pc + |\Pi(g,x,p_1)| + 3, s[i], 1):(s,i):e}} \\
+\xrightarrow{\Pi(g,x+2,p_1)} \; &
+	{\Sstate{pc + |\Pi(g,x,p_1)| + 2}{s[i]}{n^\prime}{(pc + |\Pi(g,x,p_1)| + 3, s[i], 1):(s,i):e}} \\
+\xrightarrow{NotAny} \; &
+	{\Sfail{(pc + |\Pi(g,x,p_1)| + 3, s[i], 1):(s,i):e}} \\
+\xrightarrow{Fail} \; &
+	{\Sstate{pc + |\Pi(g,x,p_1)| + 3}{s[i]}{1}{(s,i):e}} \\
+\xrightarrow{\Pi(g,x+|\Pi(g,x,p_1)|+4, p_2)} \; &
+	{\Sstate{pc + |\Pi(g, x, \{ p_1 !. / p_2 \})|-1, p_2)}{s[i]}{|s[i]|+1}{(s,i):e}} \\
+\xrightarrow{Close} \; &
+	{\Sstate{pc + |\Pi(g, x, \{ p_1 !. / p_2 \})|)}{s}{i+1}{e}}
+\end{align*}
+%
+
+
+
 % optimization benchmarks
 
 \section{Captures}
@@ -589,7 +732,7 @@ Notice that \texttt{PartialCloseCommit} has to do change the current subject.
 In LPEG, a capture is a mix of conventional captures with semantic
 actions. In order to add captures, we need to change the $\texttt{match}_L$
 relation, which now becomes:
-$\mathrm{Grammar} \times \mathrm{Pattern} \times Stream \times \mathcal{N} \times ((\mathcal{N}, Capture^*) \cup \{\Nothing\})$,
+$\mathrm{Grammar} \times \mathrm{Pattern} \times \mathrm{List} \times \mathcal{N} \times ((\mathcal{N}, Capture^*) \cup \{\Nothing\})$,
 where $Capture^*$ represents a list of captures.
 We will use the notation
 $\Matchl{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in \texttt{match}_L$.
@@ -607,17 +750,17 @@ captures, where the given function will fold the captures, producing a single va
 \begin{table}
 \centering
 \begin{tabular}{|c|} \hline
-If $v$ is a value, then $p_{const}(v)$ $\in$ Pattern  \\ %\hline
-If $p$ $\in$ Pattern then $p_{cap}$ $\in$ Pattern  \\ %\hline
-If $p$ $\in$ Pattern and $f$ is a function which produces values then $p_{func}(f)$ $\in$ Pattern \\ %\hline
-If $p$ $\in$ Pattern and $f$ is a function which produces values then $p_{fold}(f)$ $\in$ Pattern \\ \hline
+If $v$ $\in$ Value then $\Pcap{const}{v}$ $\in$ Pattern  \\ %\hline
+If $p$ $\in$ Pattern then $\Pcap{simp}{p}$ $\in$ Pattern  \\ %\hline
+If $p$ $\in$ Pattern and $f$ $\in$ $Value^* \rightarrow Value^*$ then $\Pcap{func}{f}$ $\in$ Pattern \\ %\hline
+If $p$ $\in$ Pattern and $f$ $\in$ $Value \rightarrow Value \rightarrow Value$ then $\Pcap{fold}{f}$ $\in$ Pattern \\ \hline
 \end{tabular}
 \caption{Definition of Capture Patterns}
 \label{tab:captures}
 \end{table}
 %
 Figure~\ref{fig:captures} presents the operational semantics of $\texttt{match}_L$ when dealing with these patterns,
-plus the new semantics of the concatenation pattern, where $\oplus$ is the operator for list concatenation. The
+plus the new semantics of the concatenation pattern. The
 semantics of the other PEG patterns is quite the same, the only difference is that the result of a successful matching
 is now a pair $(\mathcal{N}, Capture^*)$. From now on the successful concatenation of two patterns also appends the
 list of captures made by the second pattern on the list of captures made by the first pattern.
@@ -629,35 +772,41 @@ list of captures made by the second pattern on the list of captures made by the 
 
 \begin{figure*}[t]
 {
-\small
+\footnotesize
 \begin{align*}
 %Concatenation
 & \textbf{Concatenation} \twentyspaces
-{\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Just{(i+j, $c_1$)} \interf \Matchl{g}{p_{2}}{s}{i+j} \leadsto \Just{(i+j+k, $c_2$)}}
-{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Just{(i+j+k, $c_1 \oplus c_2$)}}} \mylabel{con.1} \\ \\
+{\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Just{i+j}{c_1} \interf \Matchl{g}{p_{2}}{s}{i+j} \leadsto \Just{(i+j+k, $c_2$)}}
+	{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Just{i+j+k}{c_1 ++ c_2}}} \mylabel{con.1} \\ \\
 &
-{\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Just{(i+j, $c_1$)} \interf \Matchl{g}{p_{2}}{s}{i+j} \leadsto \Nothing}
+{\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Justc{i+j}{c_1} \interf \Matchl{g}{p_{2}}{s}{i+j} \leadsto \Nothing}
 	{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Nothing}} \mylabel{con.2} \fivespaces
 {\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Nothing}
 	{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Nothing}} \mylabel{con.3} \\ \\
 %Matching a Constant Capture
 & \textbf{Matching a Constant Capture} \tenspaces 
-{\frac{}{\Matchl{g}{p_{const}(v)}{s}{i} \leadsto \Just{(i, \{Cconst v\})}}} \mylabel{cconst.1} \\ \\
+{\frac{}
+	{\Matchl{g}{\Pcap{const}{v}}{s}{i} \leadsto \Justc{i}{\{\Pcap{Const}{v}\}}}} \mylabel{const.1} \\ \\
 %Matching a Simple Capture
 & \textbf{Matching a Simple Capture} \tenspaces
-{\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}{\Matchl{g}{p_{cap}}{s}{i} \leadsto \Nothing}} \mylabel{csimple.2} \\ \\
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
+	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Nothing}} \mylabel{simple.2} \\ \\
 & \tenspaces
-{\frac{\Matchl{g}{p}{s}{i} \leadsto \Just{(i+j, c)}}{\Matchl{g}{p_{cap}}{s}{i} \leadsto \Just{(i+j, (Csimple (s, i)):c $\oplus$ \{Cclose j\})}}} \mylabel{csimple.1} \\ \\
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}
+	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Justc{i+j}{(\Pcapp{Simple}{s}{i}):c ++ \{\Pcap{Close}{j}\}}}} \mylabel{simple.1} \\ \\
 %Matching a Function Capture
 & \textbf{Matching a Function Capture} \tenspaces
-{\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}{\Matchl{g}{p_{func}(f)}{s}{i} \leadsto \Nothing}} \mylabel{cfunc.2} \\ \\
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
+	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Nothing}} \mylabel{func.2} \\ \\
 & \tenspaces
-{\frac{\Matchl{g}{p}{s}{i} \leadsto \Just{(i+j, c)}}{\Matchl{g}{p_{func}(f)}{s}{i} \leadsto \Just{(i+j, (Cfunc f):c $\oplus$ \{Cclose $0$\})}}} \mylabel{cfunc.1} \\ \\
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}
+	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{Func}{f}:c ++ \{\Pcap{Close}{0}\}}}} \mylabel{func.1} \\ \\
 %Matching a Fold Capture
 & \textbf{Matching a Fold Capture} \tenspaces
-{\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}{\Matchl{g}{p_{fold}(f)}{s}{i} \leadsto \Nothing}} \mylabel{cfold.2} \\ \\
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}{\Matchl{g}{\Pcap{fold}{f}}{s}{i} \leadsto \Nothing}} \mylabel{fold.2} \\ \\
 & \tenspaces
-{\frac{\Matchl{g}{p}{s}{i} \leadsto \Just{(i+j, c)}}{\Matchl{g}{p_{fold}(f)}{s}{i} \leadsto \Just{(i+j, (Cfold f):c $\oplus$ \{Cclose $0$\})}}} \mylabel{cfold.1}
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}{\Matchl{g}
+	{\Pcap{fold}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{Fold}{f}:c ++ \{\Pcap{Close}{0}\}}}} \mylabel{fold.1}
 \end{align*}
 \caption{Operational Semantics of PEG Patterns related to Captures}
 \label{fig:captures}
@@ -666,44 +815,39 @@ list of captures made by the second pattern on the list of captures made by the 
 
 Accordingly, we also need to change the state of the parsing machine and to add new instructions
 to deal with captures. The state of our machine is now either a tuple
-$\mathcal{N} \times \mathrm{T}^* \times \mathcal{N} \times \mathrm{Capture^*} \times \mathrm{Stack}$,
-containing the next instruction to execute (\emph{pc}), the current subject (\emph{s}),
-the current position in the subject (\emph{i}), the list of captures (\emph{k}),
-and a stack (\emph{e}), or $\Sfail{e}$, a failure state with stack \emph{e}. Stacks are lists of
-$(\mathcal{N} \times \mathrm{T}^* \times \mathcal{N} \times \mathrm{Capture^*}) \cup (\mathrm{T}^* \times \mathcal{N})
-\cup \mathcal{N}$, where a stack position of form $\mathcal{N} \times \mathrm{T}^* \times \mathcal{N} \times \mathrm{Capture^*}$
-represents a backtrack entry, a stack position of form $\mathrm{T}^* \times \mathcal{N}$ represents
-a list entry, and a stack position of form $\mathcal{N}$ represents a return address.
+$\mathcal{N} \times \mathrm{List} \times \mathcal{N} \times \mathrm{Stack} \times \mathrm{Capture^*}$,
+where we will use a symbol \emph{k} to denote the list of captures, or $\Sfail{e}$.
+Now, a backtrack entry keeps also a list of captures.
 
-The new instructions of the parsing machine are: \texttt{Cconst}, which pushes a value on the list
-of captures; \texttt{Copen}, which indicates the beginning of a simple capture; \texttt{Cclose},
-which indicates the ending of a capture; \texttt{Cfunc}, which pushes a function capture
-on the list of captures; and \texttt{Cfold}, which pushes a fold capture on the list of captures.
+The new instructions of the parsing machine are: \texttt{ConstCap}, which pushes a value on the list
+of captures; \texttt{SimpCap}, which indicates the beginning of a simple capture; \texttt{CloseCap},
+which indicates the ending of a capture; \texttt{FuncCap}, which pushes a function capture
+on the list of captures; and \texttt{FoldCap}, which pushes a fold capture on the list of captures.
 Figure~\ref{fig:semcaptures} presents the semantics of these new instructions. The figure also presents
 the new semantics of some instructions as \texttt{Choice} and \texttt{Fail}, and shows the transitions
 related to the failure state.
 %
 \begin{figure*}
 {
-\small
+\footnotesize
 \[
 \begin{array}{rlll}
-\Sstep{\Sstatec{pc}{s}{i}{k}{e}}{\Ia{Choice}{l}}%
-      {\Sstatec{pc+1}{s}{i}{k}{(pc+l,s,i,k):e}}{}
-\Sstep{\Sstatec{pc}{s}{i}{k}{(pc_1,s_1,i_1,k_1):e}}{\Ia{PartialCommit}{l}}%
-      {\Sstatec{pc+l}{s}{i}{k}{(pc_1,s_1,i,k):e}}{}
-\Sstep{\Sstatec{pc}{s}{i}{k}{e}}{\Ia{Fail}{}}%
-      {\Sfail{e}}{}
-\Sstep{\Sfail{pc:e}}{\mbox{\emph{any}}}%
-      {\Sfail{e}}{}
-\Sstep{\Sfail{(s,i):e}}{\mbox{\emph{any}}}%
+\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{Choice}{l}}%
+      {\Sstatec{pc+1}{s}{i}{(pc+l,s,i,k):e}{k}}{}
+\Sstep{\Sstatec{pc}{s}{i}{(pc_1,s_1,i_1,k_1):e}{k}}{\Ia{PartialCommit}{l}}%
+      {\Sstatec{pc+l}{s}{i}{(pc_1,s_1,i,k):e}{k}}{}
+\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{Fail}{}}%
       {\Sfail{e}}{}
 \Sstep{\Sfail{(pc,s,i,k):e}}{\mbox{\emph{any}}}%
-      {\Sstatec{pc}{s}{i}{k}{e}}{}
-\Sstep{\Sstatec{pc}{s}{i}{k}{e}}{\Ia{Cconst}{v}}%
-      {\Sstatec{pc+1}{s}{i}{(v):k}{e}}{}
-\Sstep{\Sstatec{pc}{s}{i}{k}{e}}{\Ia{Csimple}{v}}%
-      {\Sstatec{pc+1}{s}{i}{k+1}{e}}{}
+      {\Sstatec{pc}{s}{i}{e}{k}}{}
+\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{ConstCap}{v}}%
+      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{Const}{v}:k}}{}
+\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{SimpleCap}{p}}%
+      {\Sstatec{pc+1}{s}{i}{e}{\Pcapp{Simple}{s}{i}:k}}{}
+\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{FuncCap}{v}}%
+      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{Func}{f}:k}}{}
+\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{FoldCap}{v}}%
+      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{Fold}{f}:k}}{}
 \end{array}
 \]
 }
@@ -721,19 +865,19 @@ $s$. In case of a function capture, the function $f$ is called and receive as it
 produced by a list of captures. The values returned by $f$ are the final values of that list of captures.
 
 In case of a fold capture, the $f$ function will be called with the values produced by a list of captures.
-If \texttt{eval} of a list of captures produces values $v_1, v_2, \hdots, v_n$, we have that $f$ will
-produce the value: $f(\hdots f(f(v_1,v_2), v_3)\hdots,v_n)$.
+If \texttt{eval} of a list of captures produces values $v_1, v_2, \ldots, v_n$, we have that
+$fold f v_1, v_2, \ldots, v_n$ will produce the value: $f(\ldots f(f(v_1,v_2), v_3) \ldots,v_n)$.
+If the list of values has just one value, then the result of $fold f v_1$ is $v_1$. If the list
+is empty, the result is unspecified.
 
 The \texttt{eval} function and its auxiliary functions do this job. The definition of \texttt{eval} is:
 $\mathrm{State} \times \mathrm{State}$, where $State$ is a pair $(\mathrm{Capture^*}, \mathrm{Value^*})$, where
 $Capture^*$ is a list of captures and $Value$ a list of values.
 
 Functions \texttt{esimp}, \texttt{efunc}, and \texttt{efold} are similar to \texttt{eval}, but get also an
-extra state. In case of \texttt{esimp}, the extra state is a tuple $(\mathrm{Subject}, \mathcal{N}, \mathrm{Capture^*})$,
-where $Capture^*$ represents the list of captures until the beginning of a simple capture. In case of
-\texttt{efunc} and \texttt{efold}, the extra state is a tuple $(\mathrm{Function}, \mathrm{Capture^*})$,
-with $Capture^*$ representing the list of captures until the beginning of the current capture (\texttt{Cfunc}
-or \texttt{Cfold}).	
+extra state. In case of \texttt{esimp}, the extra state is a tuple $(\mathrm{Subject}, \mathcal{N}, \mathrm{Capture^*})$.
+In case of \texttt{efunc} and \texttt{efold}, the extra state is a tuple $(\mathrm{Function}, \mathrm{Capture^*})$.
+In all tuples, $Capture^*$ is the list of captures until the beginning of the corresponding capture.
 
 After applying \texttt{eval} to the list of captures constructed by $\mathrm{match}_L$ and an empty list of values,
 the result is an empty list of captures and a list of values obtained from the captures.
@@ -750,37 +894,37 @@ the result is an empty list of captures and a list of values obtained from the c
 %Not
 & %\textbf{eval} \tenspaces
 {\frac{}
-	{\Eval{(\Empty,v)} = (\Empty,v)}}  \mylabel{eval.1} \tenspaces 
+	{\Eval{(\Emptyl,v)} = (\Emptyl,v)}}  \mylabel{eval.1} \tenspaces 
 {\frac{}
-	{\Eval{((\Cclose{j}):cs, vs)} = ((\Cclose{j}:cs, vs)}} \mylabel{eval.2} \\ \\
+	{\Eval{(\Pcap{Close}{j}:cs, vs)} = (\Pcap{Close}{j}:cs, vs)}} \mylabel{eval.2} \\ \\
 %
-& {\frac{\Eval{(cs, vs \oplus \{v\})} = (cs_1, vs_1)}
-	{\Eval{((\Cconst{v}):cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.3} \tenspaces
-{\frac{\Esimple{(s,i,vs)}{(cs, \Empty)} = (cs_1, vs_1)}
-	{\Eval{((\Csimple{s}{i}):cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.4} \\ \\
+& {\frac{\Eval{(cs, vs ++ \{v\})} = (cs_1, vs_1)}
+	{\Eval{(\Pcap{Const}{v}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.3} \tenspaces
+{\frac{\Esimple{(s,i,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
+	{\Eval{(\Pcap{Simp}{s}{i}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.4} \\ \\
 %
-& {\frac{\Efunction{(f,vs)}{(cs, \Empty)} = (cs_1, vs_1)}
-	{\Eval{((\Cfunc{f}):cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.5} \tenspaces
-{\frac{\Efold{(f,vs)}{(cs, \Empty)} = (cs_1, vs_1)}
-	{\Eval{((\Cfold{f}):cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.6} \\ \\
+& {\frac{\Efunction{(f,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
+	{\Eval{(\Pcap{Func}{f}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.5} \tenspaces
+{\frac{\Efold{(f,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
+	{\Eval{(\Pcap{Fold}{f}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.6} \\ \\
 %
 & %\textbf{evsimple} \tenspaces 
 {\frac{\Eval{(cs, vs)} = (cs_2, vs_2)}
-	{\Esimple{(s,i,vs_1)}{((\Cclose{j}):cs, vs)} = (cs_2, vs_1 \oplus (sub(s, i, j)):vs_2)}} \mylabel{esimp.1} \\ \\
-& {\frac{\Eval{(c:cs, \Empty)} = ((\Cclose{j}):cs_2, vs_2) \;\;\; \Esimple{(s,i,vs_1)}{((\Cclose{j}):cs_2),vs_2)} = (cs_3, vs_3)}
-	{\Esimple{(s,i,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \, ,c \neq (\Cclose{j}) \mylabel{esimp.2} \\ \\
+	{\Esimple{(s,i,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 ++ (sub(s, i, j)):vs_2)}} \mylabel{esimp.1} \\ \\
+& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{Close}{j}:cs_2, vs_2) \;\;\; \Esimple{(s,i,vs_1)}{(\Pcap{Close}{j}:cs_2,vs_2)} = (cs_3, vs_3)}
+	{\Esimple{(s,i,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \, ,c \neq (\Pcap{Close}{j}) \mylabel{esimp.2} \\ \\
 %
 & %\textbf{evfunc} \tenspaces 
-{\frac{\Eval{(cs, \Empty)} = (cs_2, vs_2)}
-	{\Efunction{(f,vs_1)}{((\Cclose{j}):cs, vs)} = (cs_2, vs_1 \oplus \{f (vs)\} \oplus vs_2)}} \mylabel{efunc.1} \\ \\
-& {\frac{\Eval{(c:cs, \Empty)} = ((\Cclose{j}):cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{((\Cclose{j}):cs_2),vs_2)} = (cs_3, vs_3)}
-	{\Efunction{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq (\Cclose{j}) \mylabel{efunc.2} \\ \\
+{\frac{\Eval{(cs, \Emptyl)} = (cs_2, vs_2)}
+	{\Efunction{(f,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 ++ \{f (vs)\} ++ vs_2)}} \mylabel{efunc.1} \\ \\
+& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{Close}{j}:cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{(\Pcap{Close}{j}):cs_2),vs_2)} = (cs_3, vs_3)}
+	{\Efunction{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq \Pcap{Close}{j} \mylabel{efunc.2} \\ \\
 %
 & %\textbf{evfold} \tenspaces 
-{\frac{\Eval{(cs, \Empty)} = (cs_2, vs_2)}
-	{\Efold{(f,vs_1)}{((\Cclose{j}):cs, vs)} = (cs_2, vs_1 \oplus (fold (f, vs)):vs_2)}} \mylabel{efold.1} \\ \\
-& {\frac{\Eval{(c:cs, \Empty)} = ((\Cclose{j}):cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{((\Cclose{j}):cs_2),vs_2)} = (cs_3, vs_3)}
-	{\Efold{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq (\Cclose{j}) \mylabel{efold.2}
+{\frac{\Eval{(cs, \Emptyl)} = (cs_2, vs_2)}
+	{\Efold{(f,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 ++ (fold (f, vs)):vs_2)}} \mylabel{efold.1} \\ \\
+& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{Close}{j}:cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{(\Pcap{Close}{j}:cs_2),vs_2)} = (cs_3, vs_3)}
+	{\Efold{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq \Pcap{Close}{j}) \mylabel{efold.2}
 \end{align*}
 }
 \caption{Operational Semantics of \texttt{eval}, \texttt{esimp}, \texttt{efunc}, and \texttt{efold}}
