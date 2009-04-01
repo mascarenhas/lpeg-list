@@ -1,7 +1,5 @@
 m = require "listlpeg"
 
-require "versium.sync.serialize"
-
 local function table_print (tt, indent, done)
   done = done or {}
   indent = indent or 0
@@ -56,11 +54,11 @@ local p = re.compile([[
           div = function (x, y) return x / y end, })
 
 local p2 = re.compile([[
-			  exp <- { ("add", <exp>, <exp>)
-				 / ("sub", <exp>, <exp>)
-			         / ("mul", <exp>, <exp>)
-			         / ("div", <exp>, <exp>)
-			         / ( "num", .) }
+			  exp <- { "add", <exp>, <exp> } /
+				 { "sub", <exp>, <exp> } /
+			         { "mul", <exp>, <exp> } /
+			         { "div", <exp>, <exp> } /
+			         { "num", . }
     ]])
 
 m.print(p2)
