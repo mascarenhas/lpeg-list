@@ -18,9 +18,10 @@ end
 
 local assert = assert
 
+m.print(p)
+
 return function ()
 	 for i = 1, 20 do 
 	   assert(p:match{ subjects[i] }) 
 	 end
        end
-
