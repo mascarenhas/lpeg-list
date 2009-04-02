@@ -17,7 +17,7 @@ local assert = assert
 
 m.print(p)
 
-subject = {}
+local subject = {}
 
 for i = 1, 100 do subject[i] = s end
 
