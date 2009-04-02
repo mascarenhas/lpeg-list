@@ -85,7 +85,8 @@ typedef enum Opcode {
   ICommit, IPartialCommit, IBackCommit, IFailTwice, IFail, IGiveup,
   IFunc,
   IFullCapture, IEmptyCapture, IEmptyCaptureIdx,
-  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose, INotAny, IString
+  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose, INotAny, IString,
+  IPartialCloseCommit
 } Opcode;
 
 
@@ -124,7 +125,8 @@ static const byte opproperties[] = {
   /* IOpen */           0,
   /* IClose */          0,
   /* INotAny */         ISCHECK,
-  /* IString */         ISCHECK | ISFENVOFF
+  /* IString */         ISCHECK | ISFENVOFF,
+  /* IPartialCloseCommit */    ISJMP,
 };
 
 
@@ -275,7 +277,8 @@ static void printinst (const Instruction *op, const Instruction *p) {
     "commit", "partial_commit", "back_commit", "failtwice", "fail", "giveup",
      "func",
      "fullcapture", "emptycapture", "emptycaptureidx", "opencapture",
-    "closecapture", "closeruntime", "open", "close", "notany", "string"
+    "closecapture", "closeruntime", "open", "close", "notany", "string",
+    "partialclosecommit"
   };
   printf("%02ld: %s ", (long)(p - op), names[p->i.code]);
   switch ((Opcode)p->i.code) {
@@ -325,7 +328,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
       break;
     }
     case IJmp: case ICall: case ICommit:
-    case IPartialCommit: case IBackCommit: {
+    case IPartialCloseCommit: case IPartialCommit: case IBackCommit: {
       printjmp(op, p);
       break;
     }
@@ -611,8 +614,8 @@ static Stream *match (lua_State *L,
 		  return (luaL_error(L, "too many pending calls/choices"), 
 			  (Stream *)0);
 		stack->p = NULL;
-		s->u.l.cur++;
 		stack->s = *s;
+		stack->caplevel = captop;
 		stack++;
 		s->kind = Slist;
 		s->u.l.ref = luaL_ref(L, plistidx(ptop));
@@ -626,8 +629,8 @@ static Stream *match (lua_State *L,
 		  return (luaL_error(L, "too many pending calls/choices"), 
 			  (Stream *)0);
 		stack->p = NULL;
-		s->u.l.cur++;
 		stack->s = *s;
+		stack->caplevel = captop;
 		stack++;
 		s->kind = Sstring;
 		s->u.s.o = lua_tolstring(L, -1, &siz);
@@ -650,28 +653,29 @@ static Stream *match (lua_State *L,
 	switch(s->kind) {
 	  case Slist: {
 	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
-	    assert(lua_istable(L, -1) && stack > stackbase && 
-		   (stack - 1)->p == NULL);
+	    assert(lua_istable(L, -1) && stack > stackbase);
 	    lua_rawgeti(L, -1, s->u.l.cur);
 	    if(!lua_isnil(L, -1)) {
-	      condfailed(p);
+	      goto fail;
 	    } else {
 	      --stack;
 	      *s = stack->s;
+	      s->u.l.cur++;
 	      p++;
 	    }
 	    lua_pop(L, 2); break;
 	  }
 	  case Sstring: {
-	    if(s->u.s.s < s->u.s.e) { condfailed(p); }
+	    if(s->u.s.s < s->u.s.e) { goto fail; }
 	    else {
 	      --stack;
 	      *s = stack->s;
+	      s->u.l.cur++;
 	      p++;
 	    }
 	    break;
 	  }
-	  default: condfailed(p);
+	  default: goto fail;
 	}
 	continue;
       }
@@ -710,6 +714,48 @@ static Stream *match (lua_State *L,
         (stack - 1)->caplevel = captop;
         p += p->i.offset;
         continue;
+      }
+      case IPartialCloseCommit: {
+	switch(s->kind) {
+	  case Slist: {
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    lua_rawgeti(L, -1, s->u.l.cur);
+	    if(!lua_isnil(L, -1)) {
+	      lua_pop(L, 2); goto fail;
+	    }
+	    lua_pop(L, 2); break;
+	  }
+	  case Sstring: {
+	    if(s->u.s.s < s->u.s.e) { goto fail; }
+	    break;
+	  }
+	  default: goto fail;
+	}
+	(stack - 2)->s.u.l.cur++;
+	(stack - 2)->caplevel = captop;
+      	lua_rawgeti(L, plistidx(ptop), (stack - 2)->s.u.l.ref);
+	lua_rawgeti(L, -1, (stack - 2)->s.u.l.cur);
+	switch(lua_type(L, -1)) {
+	  case LUA_TTABLE: {
+	    s->kind = Slist;
+	    s->u.l.ref = luaL_ref(L, plistidx(ptop));
+	    s->u.l.cur = 1;
+	    break;
+	  }
+	  case LUA_TSTRING: {
+	    size_t siz;
+	    s->kind = Sstring;
+	    s->u.s.o = lua_tolstring(L, -1, &siz);
+	    lua_pop(L, 1);
+	    s->u.s.s = s->u.s.o;
+	    s->u.s.e = s->u.s.o + siz;
+	    break;
+	  }
+	  default: lua_pop(L, 2); goto fail;
+	}
+	p += p->i.offset;
+	lua_pop(L, 1);
+	continue;
       }
       case IBackCommit: {
         assert(stack > stackbase);
@@ -920,6 +966,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
         backtop--;
         goto dojmp;
       }
+      case IPartialCloseCommit:
       case IPartialCommit: {
         assert(backtop > 0);
         if (p->i.offset > 0) goto dojmp;  /* forward jump */
@@ -998,9 +1045,11 @@ static void checkrule (lua_State *L, Instruction *op, int from, int to,
   int i;
   int lastopen = 0;  /* more recent OpenCall seen in the code */
   for (i = from; i < to; i += sizei(op + i)) {
-    if (op[i].i.code == IPartialCommit && op[i].i.offset < 0) {  /* loop? */
+    if ((op[i].i.code == IPartialCommit || op[i].i.code == IPartialCloseCommit)
+	&& op[i].i.offset < 0) {  /* loop? */
       int start = dest(op, i);
-      assert(op[start - 1].i.code == IChoice && dest(op, start - 1) == i + 1);
+      assert((op[start - 1].i.code == IChoice && dest(op, start - 1) == i + 1) ||
+	     (op[start - 2].i.code == IChoice && dest(op, start - 2) == i + 1));
       if (start <= lastopen) {  /* loop does contain an open call? */
         if (!verify(L, op, op + start, op + i, postable, rule)) /* check body */
           luaL_error(L, "possible infinite loop in %s", val2str(L, rule));
@@ -1836,17 +1885,31 @@ static Instruction *repeatheadfail (lua_State *L, int l1, int n) {
 static Instruction *repeats (lua_State *L, Instruction *p1, int l1, int n) {
   /* e; ...; e; choice L1; L2: e; partialcommit L2; L1: ... */
   int i;
-  Instruction *op = newpatt(L, (n + 1)*l1 + 2);
-  Instruction *p = op;
-  if (!verify(L, p1, p1, p1 + l1, 0, 0))
-    luaL_error(L, "loop body may accept empty string");
-  for (i = 0; i < n; i++) {
+  if(islist(p1, l1)) {
+    Instruction *op = newpatt(L, (n + 1)*l1 + 1);
+    Instruction *p = op;
+    if (!verify(L, p1, p1, p1 + l1, 0, 0))
+      luaL_error(L, "loop body may accept empty string");
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+    }
+    setinst(p++, IChoice, 1 + l1);
     p += addpatt(L, p, 1);
+    setinst(p - 1, IPartialCloseCommit, -l1 + 2);
+    return op;
+  } else {
+    Instruction *op = newpatt(L, (n + 1)*l1 + 2);
+    Instruction *p = op;
+    if (!verify(L, p1, p1, p1 + l1, 0, 0))
+      luaL_error(L, "loop body may accept empty string");
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+    }
+    setinst(p++, IChoice, 1 + l1 + 1);
+    p += addpatt(L, p, 1);
+    setinst(p, IPartialCommit, -l1);
+    return op;
   }
-  setinst(p++, IChoice, 1 + l1 + 1);
-  p += addpatt(L, p, 1);
-  setinst(p, IPartialCommit, -l1);
-  return op;
 }
 
 
@@ -1863,16 +1926,30 @@ static void optionalheadfail (lua_State *L, int l1, int n) {
 
 static void optionals (lua_State *L, int l1, int n) {
   /* choice L1; e; partialcommit L2; L2: ... e; L1: commit L3; L3: ... */
-  int i;
-  Instruction *op = newpatt(L, n*(l1 + 1) + 1);
-  Instruction *p = op;
-  setinst(p++, IChoice, 1 + n*(l1 + 1));
-  for (i = 0; i < n; i++) {
-    p += addpatt(L, p, 1);
-    setinst(p++, IPartialCommit, 1);
+  int i; int l;
+  Instruction *p1 = getpatt(L, 1, &l);
+  if(islist(p1, l1)) {
+    Instruction *op = newpatt(L, n*l1 + 2);
+    Instruction *p = op;
+    setinst(p++, IChoice, 1 + n*(l1 + 1));
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+      setinst(p - 1, IPartialCloseCommit, 1);
+    }
+    setinst(p - 1, IClose, 1); /* correct last */
+    setinst(p++, ICommit, 1);
+    optimizechoice(op);
+  } else {
+    Instruction *op = newpatt(L, n*(l1 + 1) + 1);
+    Instruction *p = op;
+    setinst(p++, IChoice, 1 + n*(l1 + 1));
+    for (i = 0; i < n; i++) {
+      p += addpatt(L, p, 1);
+      setinst(p++, IPartialCommit, 1);
+    }
+    setinst(p - 1, ICommit, 1);  /* correct last commit */
+    optimizechoice(op);
   }
-  setinst(p - 1, ICommit, 1);  /* correct last commit */
-  optimizechoice(op);
 }
 
 
