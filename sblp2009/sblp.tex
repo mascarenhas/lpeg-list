@@ -297,9 +297,9 @@ rules in the semantics of $\texttt{match}_L$, the proof becomes trivial.
 	{\Matchl{g^{\prime}}{(g,A_{k})}{s}{i} \leadsto \Nothing}} \mylabel{cg.2} \\ \\
 %Lists
 & \textbf{List} \tenspaces
-{\frac{\Matchl{g}{p}{s[i]}{1} \leadsto \Just{$|$s[i]$|$+ 1}}
+{\frac{\Matchl{g}{p}{s[i]}{1} \leadsto \Just{$|s[i]|$+ 1}}
 	{\Matchl{g}{\{p\}}{s}{i} \leadsto \Just{i+1}}} \mylabel{list.1} \tenspaces
-{\frac{\Matchl{g}{p}{s[i]}{1} \neq |s[i]| + 1}
+{\frac{\Matchl{g}{p}{s[i]}{1} \neq \Just{$|s[i]|$ + 1}}
 	{\Matchl{g}{\{p\}}{s}{i} \leadsto \Nothing}} \mylabel{list.2}
 \end{align*}
 \caption{Operational Semantics of PEGs with Lists}
@@ -372,8 +372,6 @@ is valid.
       {\Sstate{pc_1}{s}{i}{e}}{}
 \Sstep{\Sstate{pc}{s}{i}{h:e}}{\Ia{Commit}{l}}%
       {\Sstate{pc+l}{s}{i}{e}}{}
-\Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{PartialCommit}{l}}%
-      {\Sstate{pc+l}{s}{i}{(pc_1,s_1,i):e}}{}
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Fail}{}}%
       {\Sfail{e}}{}
 \Sstep{\Sfail{pc:e}}{\mbox{\emph{any}}}%
@@ -544,9 +542,9 @@ argument.
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{ChoiceOpen}{l}}%
       {\Sstate{pc+1}{\Subi}{1}{(pc+l,s,i):e}}{}
 \Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{PartialCloseCommit}{l}}%
-      {\Sstate{pc+l}{s_1[i_1+1]}{1}{(pc_1,s_1,i_1+1):e}}{i=|\Sub[i_1]|+1}
+      {\Sstate{pc+l}{s_1[i_1+1]}{1}{(pc_1,s_1,i_1+1):e}}{i=|\Sub|+1}
 \Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{PartialCloseCommit}{l}}%
-      {\Sstate{pc+l}{s_1}{i_1}{e}}{i\neq|\Sub[i_1]|+1}
+      {\Sstate{pc+l}{s_1}{i_1}{e}}{i\neq|\Sub|+1}
 \end{array}
 \]
 }
@@ -692,18 +690,17 @@ actions. In order to add captures, we need to change the $\texttt{match}_L$
 relation, which now becomes:
 $\mathrm{Grammar} \times \mathrm{Pattern} \times \mathrm{List} \times \mathcal{N} \times ((\mathcal{N}, Capture^*) \cup \{\Nothing\})$,
 where $Capture^*$ represents a list of captures.
-We will use the notation
-$\Matchl{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in \texttt{match}_L$.
+%We will use the notation
+%$\Matchl{G}{p}{s}{i} \leadsto (j,c)$ to indicate that $(G, p, s, i, (j, c)) \in \texttt{match}_L$.
 
 The use of captures does not affect the matching of a subject, if a matching was successful without the
-use of captures, it still be successful if we do it again using captures. Therefore, the use of captures
-will only affect the list of captures.
+use of captures, it will still be successful if we do it again using captures. Therefore, the use of capture
+patterns, whose syntax is listed in Table~\ref{tab:captures}, will only affect the list of captures.
 
-Table~\ref{tab:captures} lists the capture patterns. We have four kinds of captures:
-\emph{simple}, which captures a given portion of the subject; \emph{constant},
-which creates a constant capture; \emph{function}, which calls a given function
-with a list of values obtained from the captures; and \emph{fold}, which folds (or
-reduces) a list of values, producing a single value.
+We have four kinds of captures: \emph{simple}, which captures a given portion of the subject;
+\emph{constant}, which creates a constant capture; \emph{function}, which calls a given function
+with a list of values obtained from the captures; and \emph{fold}, which folds (or reduces) a list
+of values, producing a single value.
 %
 \begin{table}
 \centering
@@ -713,18 +710,13 @@ If $p$ $\in$ Pattern then $\Pcap{simp}{p}$ $\in$ Pattern  \\ %\hline
 If $p$ $\in$ Pattern and $f$ $\in$ $Value^* \times Value^*$ then $\Pcap{func}{f}$ $\in$ Pattern \\ %\hline
 If $p$ $\in$ Pattern and $f$ $\in$ $Value \times Value \times Value$ then $\Pcap{fold}{f}$ $\in$ Pattern \\ \hline
 \end{tabular}
-\caption{Definition of Capture Patterns}
+\caption{Syntax of Capture Patterns}
 \label{tab:captures}
 \end{table}
 %
 Figure~\ref{fig:captures} presents the new operational semantics of $\texttt{match}_L$ when dealing with captures.
 As the semantics of $\texttt{match}_L$ remains the same when a pattern fails, we did not repeat the rules related
-to an unsuccessful matching.
-cthese patterns,
-plus the new semantics of the concatenation pattern. The
-semantics of the other PEG patterns is quite the same, the only difference is that the result of a successful matching
-is now a pair $(\mathcal{N}, Capture^*)$. From now on the successful concatenation of two patterns also appends the
-list of captures made by the second pattern on the list of captures made by the first pattern.
+to an unsuccessful matching for the previous patterns.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Operational Semantics of PEG with Captures %%%
@@ -775,12 +767,12 @@ list of captures made by the second pattern on the list of captures made by the 
 	{\Matchl{g^{\prime}}{(g,A_{k})}{s}{i} \leadsto \Justc{i+j}{c}}} \mylabel{cg.1} \tenspaces \\ \\
 %Lists
 & \textbf{List} \;\;
-{\frac{\Matchl{g}{p}{s[i]}{1} \leadsto \Justc{$|$ s[i]$|$ + 1}{c}}
+{\frac{\Matchl{g}{p}{s[i]}{1} \leadsto \Justc{$|s[i]|$ + 1}{c}}
 	{\Matchl{g}{\{p\}}{s}{i} \leadsto \Justc{i+1}{c}}} \mylabel{list.1} \;\;\;
 %Matching a Constant Capture
 \textbf{Const Capture} \;\;
 {\frac{}
-	{\Matchl{g}{\Pcap{const}{v}}{s}{i} \leadsto \Justc{i}{\{\Pcap{Const}{v}\}}}} \mylabel{const.1} \\ \\
+	{\Matchl{g}{\Pcap{const}{v}}{s}{i} \leadsto \Justc{i}{\{\Pcap{const}{v}\}}}} \mylabel{const.1} \\ \\
 %Matching a Simple Capture
 & \textbf{Simple Capture} \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
@@ -814,8 +806,8 @@ where we will use a symbol \emph{k} to denote the list of captures, or $\Sfail{e
 Now, a backtrack entry keeps also a list of captures.
 
 The new instructions of the parsing machine are: \texttt{ConstCap}, which pushes a value on the list
-of captures; \texttt{SimpCap}, which indicates the beginning of a simple capture; \texttt{CloseCap},
-which indicates the ending of a capture; \texttt{FuncCap}, which pushes a function capture
+of captures; \texttt{SimpleCap}, which pusches a simple capture; \texttt{CloseCap},
+which indicates the ending of a capture; \texttt{FunctionCap}, which pushes a function capture
 on the list of captures; and \texttt{FoldCap}, which pushes a fold capture on the list of captures.
 Figure~\ref{fig:semcaptures} presents the semantics of these new instructions. The figure also presents
 the new semantics of some instructions as \texttt{Choice} and \texttt{Fail}, and shows the transitions
@@ -837,11 +829,11 @@ related to the failure state.
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{ConstCap}{v}}%
       {\Sstatec{pc+1}{s}{i}{e}{\Pcap{Const}{v}:k}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{SimpleCap}{p}}%
-      {\Sstatec{pc+1}{s}{i}{e}{\Pcapp{Simple}{s}{i}:k}}{}
+      {\Sstatec{pc+1}{s}{i}{e}{\Pcapp{simple}{s}{i}:k}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{FuncCap}{v}}%
-      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{Func}{f}:k}}{}
+      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{func}{f}:k}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{FoldCap}{v}}%
-      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{Fold}{f}:k}}{}
+      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{fold}{f}:k}}{}
 \end{array}
 \]
 }
@@ -890,35 +882,35 @@ the result is an empty list of captures and a list of values obtained from the c
 {\frac{}
 	{\Eval{(\Emptyl,v)} = (\Emptyl,v)}}  \mylabel{eval.1} \tenspaces 
 {\frac{}
-	{\Eval{(\Pcap{Close}{j}:cs, vs)} = (\Pcap{Close}{j}:cs, vs)}} \mylabel{eval.2} \\ \\
+	{\Eval{(\Pcap{close}{j}:cs, vs)} = (\Pcap{close}{j}:cs, vs)}} \mylabel{eval.2} \\ \\
 %
 & {\frac{\Eval{(cs, vs \Concatl \{v\})} = (cs_1, vs_1)}
 	{\Eval{(\Pcap{Const}{v}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.3} \tenspaces
 {\frac{\Esimple{(s,i,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
-	{\Eval{(\Pcap{Simp}{s}{i}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.4} \\ \\
+	{\Eval{(\Pcap{simp}{s}{i}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.4} \\ \\
 %
 & {\frac{\Efunction{(f,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
-	{\Eval{(\Pcap{Func}{f}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.5} \tenspaces
+	{\Eval{(\Pcap{func}{f}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.5} \tenspaces
 {\frac{\Efold{(f,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
-	{\Eval{(\Pcap{Fold}{f}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.6} \\ \\
+	{\Eval{(\Pcap{fold}{f}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.6} \\ \\
 %
 & %\textbf{evsimple} \tenspaces 
 {\frac{\Eval{(cs, vs)} = (cs_2, vs_2)}
-	{\Esimple{(s,i,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl (sub(s, i, j)):vs_2)}} \mylabel{esimp.1} \\ \\
-& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{Close}{j}:cs_2, vs_2) \;\;\; \Esimple{(s,i,vs_1)}{(\Pcap{Close}{j}:cs_2,vs_2)} = (cs_3, vs_3)}
-	{\Esimple{(s,i,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \, ,c \neq (\Pcap{Close}{j}) \mylabel{esimp.2} \\ \\
+	{\Esimple{(s,i,vs_1)}{(\Pcap{close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl (sub(s, i, j)):vs_2)}} \mylabel{esimp.1} \\ \\
+& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{close}{j}:cs_2, vs_2) \;\;\; \Esimple{(s,i,vs_1)}{(\Pcap{close}{j}:cs_2,vs_2)} = (cs_3, vs_3)}
+	{\Esimple{(s,i,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \, ,c \neq (\Pcap{close}{j}) \mylabel{esimp.2} \\ \\
 %
 & %\textbf{evfunc} \tenspaces 
 {\frac{\Eval{(cs, \Emptyl)} = (cs_2, vs_2)}
-	{\Efunction{(f,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl \{f (vs)\} \Concatl vs_2)}} \mylabel{efunc.1} \\ \\
-& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{Close}{j}:cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{(\Pcap{Close}{j}):cs_2),vs_2)} = (cs_3, vs_3)}
-	{\Efunction{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq \Pcap{Close}{j} \mylabel{efunc.2} \\ \\
+	{\Efunction{(f,vs_1)}{(\Pcap{close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl \{f (vs)\} \Concatl vs_2)}} \mylabel{efunc.1} \\ \\
+& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{close}{j}:cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{(\Pcap{close}{j}):cs_2),vs_2)} = (cs_3, vs_3)}
+	{\Efunction{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq \Pcap{close}{j} \mylabel{efunc.2} \\ \\
 %
 & %\textbf{evfold} \tenspaces 
 {\frac{\Eval{(cs, \Emptyl)} = (cs_2, vs_2)}
-	{\Efold{(f,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl (fold (f, vs)):vs_2)}} \mylabel{efold.1} \\ \\
-& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{Close}{j}:cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{(\Pcap{Close}{j}:cs_2),vs_2)} = (cs_3, vs_3)}
-	{\Efold{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq \Pcap{Close}{j}) \mylabel{efold.2}
+	{\Efold{(f,vs_1)}{(\Pcap{close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl (fold (f, vs)):vs_2)}} \mylabel{efold.1} \\ \\
+& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{close}{j}:cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{(\Pcap{close}{j}:cs_2),vs_2)} = (cs_3, vs_3)}
+	{\Efold{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq \Pcap{close}{j}) \mylabel{efold.2}
 \end{align*}
 }
 \caption{Operational Semantics of \texttt{eval}, \texttt{esimp}, \texttt{efunc}, and \texttt{efold}}
