@@ -68,7 +68,7 @@
 
 \sloppy
 
-\title{Efficient List Matching for PEGs}
+\title{Efficient List Matching using PEGs}
 
 \author{Sérgio Medeiros\inst{1}, Fabio Mascarenhas\inst{1}, Roberto Ierusalimschy\inst{1} }
 
@@ -85,68 +85,73 @@
 Parsing Expression Grammars (PEGs) are a recognition-based foundation
 for describing syntax that renewed interest in top-down parsing
 approaches. We extend the definition of PEGs to support the matching
-of lists, presenting a corresponding operational semantics and an
-implementation of PEGs supporting this feature. The implementation
-is based on a virtual parsing machine, where each PEG  
-has a corresponding program that is executed by the machine,
-and new programs are dynamically created and composed. 
-We show how to transform PEGs to parsing machine programs, and
-give a correctness proof of our transformation.
-We discuss the use of semantic actions, and shows the efficiency
-of our machine comparing it with other PEG-based tool.
+of structured data in the form of lists, with a corresponding operational semantics.
+We also extend a virtual parsing machine from a previous work where
+each PEG can be transformed as a program for this machine, and extend the
+previous correctness proofs of this transformation for the new list patterns, along
+with possible optimizations. We also present an approach for formally adding 
+semantic actions to PEGs and their parsing machine programs. Benchmarks validate
+the effectiveness of our optimizations and the efficiency of our approach compared
+to other PEG-based tool.
 \end{abstract}
 
-%\keywords{parsing machine, Parsing Expression Grammars, pattern matching} % NOT required for Proceedings
+\keywords{parsing machine, Parsing Expression Grammars, pattern matching, virtual machines}
 
 \section{Introduction}
 
-Parsing Expression Grammars (PEGs) are a formalism for language recognition,
-proposed by Ford~\cite{ford:peg}, which renewed interest in top-down parsing
-approaches. The PEG formalism gives a convenient syntax for describing top-down
-parsers for unambiguous languages. 
+Parsing Expression Grammars (PEGs)~\cite{ford:peg} are a formalism for language recognition
+ which renewed interest in top-down parsing approaches. The PEG formalism gives a convenient
+syntax for describing top-down parsers for unambiguous languages. The core of the formalism
+is a form of limited backtracking via \emph{ordered choice}. The limited backtracking gives
+PEGs the property of composability, meaning that a PEG can be used by another PEG just by making
+sure the names of their productions do not clash. This also lets PEG implementations integrate
+cleanly with hand-written parsers. These properties make PEGs very attractive for building
+dynamically-extensible parsers.
 
-LPEG~\cite{roberto:lpeg, lpeg} is a pattern-matching tool based on PEGs
-for the Lua language~\cite{pil2}. LPEG uses PEGs to describe patterns
-instead of the more popular Perl-like "regular expressions" (regexes). 
-The implementation of LPEG is based on a \emph{virtual parsing machine},
-where each pattern translates to a program for this machine~\cite{dls:lpeg}.
-These programs are built at runtime,
-and can also be dynamically composed into bigger programs (that
-represent bigger patterns). This piecemeal construction
-of programs fits both the dynamic nature of Lua programming, and the
-composability of the PEG formalism.
+LPEG~\cite{roberto:lpeg} is a pattern-matching tool for the Lua language ~\cite{pil2} that uses
+uses PEGs to describe patterns instead of the more popular Perl-like "regular expressions" (regexes). 
+The implementation of LPEG uses a \emph{virtual parsing machine},
+where each pattern translates to a program for this machine~\cite{dls:lpeg}. LPEG builds these
+programs at runtime, dynamically composing smaller programs into bigger programs, thus taking
+advantage of the composability of PEGs. PEGs limited backtracking is also reflected on this
+parsing machine through its use of a stack to manage backtrack information.
 
 This paper is a continuation of a previous work~\cite{dls:lpeg} where we 
-have presented the full formal specification of the parsing machine, plus the
-proof of correctness of the transformation between PEG patterns and programs
-of our machine.
+presented an alternative operational semantic for PEGs (based on natural semantics), and
+a formal specification of the parsing machine, along with a  correctness proof for our
+transformation of PEGs to programs of the machine.
 
-In the present work, we extend the definition of PEGs to support the matching
-of lists. Accordingly, we extend the operational semantics of PEGs presented
-previously, and also extend the instruction set of the parsing machine,
-proving the transformation between PEG patterns and programs of our machine
-is still correct.
+Both the original PEG formalism and our previous parsing machine assume that the subject
+a PEG recognizes is a string of characters. In this paper, we extend both formalisms to
+parse structured data in the form of Lisp-style lists (a possibly empty list where each element 
+can be an atom or another list). We show that our previous results hold when matching lists
+or slices of lists that are isomorphic to strings, and give proofs for the correctness of the
+translation of our new constructions.
 
-We also discuss the use of semantic actions in the realm of PEGs, extending PEGs
-to support their use, and presenting how the virtual machine performs semantic
-actions. During the matching, the machine does not actually perform the semantic
-actions, but only captures enough information, so later (after the matching)
-it can produce values from the captured information.
+Adding a few extra instructions to the parsing machine enables transformation of certain
+classes of pattern to more efficient programs, and we also present these optimizations. Again, we
+restrict ourselves to optimizations on list patterns, as our previous work has covered more general
+PEG optimizations. For each optimization, we present a proof of its correctness and a benchmark
+showing how effective it is.
 
-The performance of LPEG is compared with OMeta~\cite{warth:ometa}, a language based
-on an extension of PEGs which supports the matching of lists. Our benchmarks show
-LPEG is almost $10$ times faster than OMeta.
+We also present an extension to the PEG formalism to include lazy semantic actions, by which
+we can extract useful information from structured data, instead of just knowing if it fits a pattern.
+Our approach for semantic actions is lazy because the match does not execute the actions, only collects enough
+information to execute them later (in a typical implementation, right after the match finishes). This also
+means that semantic actions are free to have side-effects even in the presence of backtracking.
+
+Finally, we review related work on parsing structured data, and semantic actions for PEGs. We also present another set
+of benchmarks comparing our extended LPEG with a PEG-based tool of similar power, showing an order-of-magnitude
+improvement.
 
 The rest of this paper is organized as follows: Section~\ref{sec:machine} extends
-PEGs to support the matching of lists and describes the virtual parsing machine;
+PEGs with list patterns and describes the virtual parsing machine;
 Section~\ref{sec:equivalence} proves the transformation between PEGs and their
-corresponding programs in the machine is correct; Section~\ref{sec:optimizations}
-describes a new set of list-specific instructions for the machine;
-Section~\ref{sec:captures} gives an operational semantics for semantic actions
-and shows how the machine perform these actions; Section~\ref{sec:related} discusses some
-related work and presents a benchmark comparing LPEG with OMeta; finally,
+corresponding programs for the machine is correct; Section~\ref{sec:optimizations}
+describes optimizations for list patterns in our machine;
+Section~\ref{sec:captures} extends PEGs with lazy semantic actions and shows how to execute them;
+Section~\ref{sec:related} reviews some related work; finally,
 Section~\ref{sec:conclusions} summarizes our results.
-
 
 \section{Extending PEGs with Lists}
 \label{sec:machine}
