@@ -647,7 +647,7 @@ If $p$ $\in$ Pattern and $f$ $\in$ $Value \times Value \times Value$ then $\Pcap
 %
 Figure~\ref{fig:captures} presents the new operational semantics of $\texttt{match}_L$ when dealing with captures.
 As the semantics of $\texttt{match}_L$ remains the same when a pattern fails, we did not repeat the rules related
-to an unsuccessful matching for the previous patterns.
+to an unsuccessful matching for the previous patterns. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Operational Semantics of PEG with Captures %%%
@@ -717,13 +717,13 @@ to an unsuccessful matching for the previous patterns.
 	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Nothing}} \mylabel{func.2} \\ \\
 & \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}
-	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{func}{f} \Concatl c \Concatl \{\Pcap{close}{0}\}}}} \mylabel{func.1} \\ \\
+	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{func}{f} \Concatl c \Concatl \{\Pcap{close}{j}\}}}} \mylabel{func.1} \\ \\
 %Matching a Fold Capture
 & \textbf{Fold Capture} \;
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}{\Matchl{g}{\Pcap{fold}{f}}{s}{i} \leadsto \Nothing}} \mylabel{fold.2}
 \;
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}{\Matchl{g}
-	{\Pcap{fold}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{fold}{f}:c \Concatl \{\Pcap{close}{0}\}}}} \mylabel{fold.1}
+	{\Pcap{fold}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{fold}{f}:c \Concatl \{\Pcap{close}{j}\}}}} \mylabel{fold.1}
 \end{align*}
 \caption{Operational Semantics of PEG Patterns with Captures}
 \label{fig:captures}
@@ -746,15 +746,15 @@ Now, a backtrack entry keeps also a list of captures.
 \Sstep{\Sfail{(pc,s,i,k):e}}{\mbox{\emph{any}}}%
       {\Sstatec{pc}{s}{i}{e}{k}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{ConstCap}{v}}%
-      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{const}{v}:k}}{}
+      {\Sstatec{pc+1}{s}{i}{e}{k \Concatl \{\Pcap{const}{v}\}}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{SimpCap}{p}}%
-      {\Sstatec{pc+1}{s}{i}{e}{\Pcapp{simp}{s}{i}:k}}{}
+      {\Sstatec{pc+1}{s}{i}{e}{k \Concatl \{\Pcapp{simp}{s}{i}\}}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{FuncCap}{v}}%
-      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{func}{f}:k}}{}
+      {\Sstatec{pc+1}{s}{i}{e}{k \Concatl \{\Pcap{func}{f}\}}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{FoldCap}{v}}%
-      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{fold}{f}:k}}{}
+      {\Sstatec{pc+1}{s}{i}{e}{k \Concatl \{\Pcap{fold}{f}\}}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{CloseCap}{}}%
-      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{close}{i}:k}}{}
+      {\Sstatec{pc+1}{s}{i}{e}{k \Concatl \{\Pcap{close}{i}\}}}{}
 \end{array}
 \]
 }
@@ -771,6 +771,9 @@ and \texttt{CloseCap}, which pushes an entry indicating the end of a capture;
 Figure~\ref{fig:semcaptures} presents the semantics of these new instructions, plus the new semantics of
 \texttt{Choice} and \texttt{Fail} when there is backtrack entry on the top of the stack.
 
+The compilation of a pattern $\Pcap{const}{v}$, just produces an instruction $ConstCap \; v$. The compilation
+of a pattern $\Pcap{simp}{p}$, puts a pair of instructions $SimpCap-CloseCap$ around the program corresponding
+to pattern $p$. The compilation of $\Pcap{func}{f}$ and $\Pcap{fold}{f}$ is similar.
 
 \subsection{Evaluating the List of Captures}
 
@@ -798,7 +801,7 @@ In case of \texttt{efunc} and \texttt{efold}, the extra state is a tuple $(\math
 In all tuples, $Capture^*$ is the list of captures until the beginning of the corresponding capture.
 After applying \texttt{eval} to the list of captures constructed by $\mathrm{match}_L$ and an empty list of values,
 the result is an empty list of captures and a list of values obtained from the captures.
-
+Notice that the position associated with a close capture is only important when evaluating a simple capture.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Operational Semantics of eval %%%%
