@@ -87,7 +87,7 @@ for describing syntax that renewed interest in top-down parsing
 approaches. We extend the definition of PEGs to support the matching
 of structured data in the form of lists, with a corresponding operational semantics.
 We also extend a virtual parsing machine from a previous work where
-each PEG can be transformed as a program for this machine, and extend the
+each PEG can be transformed to a program for this machine, and extend the
 previous correctness proofs of this transformation for the new list patterns, along
 with possible optimizations. We also present an approach for formally adding 
 semantic actions to PEGs and their parsing machine programs. Benchmarks validate
@@ -95,7 +95,7 @@ the effectiveness of our optimizations and the efficiency of our approach compar
 to other PEG-based tool.
 \end{abstract}
 
-\keywords{parsing machine, Parsing Expression Grammars, pattern matching, virtual machines}
+%\keywords{parsing machine, Parsing Expression Grammars, pattern matching, virtual machines}
 
 \section{Introduction}
 
@@ -109,7 +109,7 @@ cleanly with hand-written parsers. These properties make PEGs very attractive fo
 dynamically-extensible parsers.
 
 LPEG~\cite{roberto:lpeg} is a pattern-matching tool for the Lua language ~\cite{pil2} that uses
-uses PEGs to describe patterns instead of the more popular Perl-like "regular expressions" (regexes). 
+PEGs to describe patterns instead of the more popular Perl-like ``regular expressions" (regexes). 
 The implementation of LPEG uses a \emph{virtual parsing machine},
 where each pattern translates to a program for this machine~\cite{dls:lpeg}. LPEG builds these
 programs at runtime, dynamically composing smaller programs into bigger programs, thus taking
@@ -129,7 +129,7 @@ or slices of lists that are isomorphic to strings, and give proofs for the corre
 translation of our new constructions.
 
 Adding a few extra instructions to the parsing machine enables transformation of certain
-classes of pattern to more efficient programs, and we also present these optimizations. Again, we
+pattern classes to more efficient programs, and we also present these optimizations. Again, we
 restrict ourselves to optimizations on list patterns, as our previous work has covered more general
 PEG optimizations. For each optimization, we present a proof of its correctness and a benchmark
 showing how effective it is.
@@ -190,6 +190,7 @@ the exception being rules $list.1$, and $list.2$, which are list-specific.
 \begin{tabular}{|c|} \hline
 \chmath{.}            $\in$ Pattern  \\ %\hline
 \chmath{c}            $\in$ Pattern  \\ %\hline
+If $(A, p)$ $\in$ Grammar then  $A$     $\in$ Pattern  \\ %\hline
 If $p$   $\in$ Pattern then      
   $p^*$, $!p$, $\&p$, and $\{p\}$  $\in$ Pattern \\ %\hline	
 If $p_{1}$ and $p_{2}$ $\in$ Pattern then
