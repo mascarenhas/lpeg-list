@@ -25,3 +25,7 @@ return function ()
 	   assert(p:match{ subjects[i] }) 
 	 end
        end
+<<<<<<< HEAD:bench/headfail.lua
+=======
+
+>>>>>>> 3fcb9c938ec1b3e9e01c2a8b91fb407eb7cc8793:bench/headfail.lua

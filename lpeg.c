@@ -85,7 +85,7 @@ typedef enum Opcode {
   ICommit, IPartialCommit, IBackCommit, IFailTwice, IFail, IGiveup,
   IFunc,
   IFullCapture, IEmptyCapture, IEmptyCaptureIdx,
-  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose,
+  IOpenCapture, ICloseCapture, ICloseRunTime, IOpen, IClose, IString,
   IPartialCloseCommit
 } Opcode;
 
@@ -124,7 +124,8 @@ static const byte opproperties[] = {
   /* ICloseRunTime */	ISCAPTURE | ISFENVOFF,
   /* IOpen */           0,
   /* IClose */          0,
-  /* IPartialCloseCommit */    ISJMP,
+  /* IString */         ISCHECK | ISFENVOFF,
+  /* IPartialCloseCommit */    ISJMP
 };
 
 
@@ -197,6 +198,7 @@ typedef struct Capture {
 
 static int sizei (const Instruction *i) {
   if (hascharset(i)) return CHARSETINSTSIZE;
+  else if (i->i.code == IString) return 2;
   else if (i->i.code == IFunc) return i->i.offset;
   else return 1;
 }
@@ -274,7 +276,7 @@ static void printinst (const Instruction *op, const Instruction *p) {
     "commit", "partial_commit", "back_commit", "failtwice", "fail", "giveup",
      "func",
      "fullcapture", "emptycapture", "emptycaptureidx", "opencapture",
-    "closecapture", "closeruntime", "open", "close", 
+    "closecapture", "closeruntime", "open", "close", "string"
     "partialclosecommit"
   };
   printf("%02ld: %s ", (long)(p - op), names[p->i.code]);
@@ -286,6 +288,11 @@ static void printinst (const Instruction *op, const Instruction *p) {
     }
     case IAny: {
       printf("* %d", p->i.aux);
+      printjmp(op, p);
+      break;
+    }
+    case IString: {
+      printf("%d", (p+1)->i.offset);
       printjmp(op, p);
       break;
     }
@@ -529,6 +536,25 @@ static Stream *match (lua_State *L,
 	  }
 	}
 	p += CHARSETINSTSIZE;
+	continue;
+      }
+      case IString: {
+	switch(s->kind) {
+	  case Sstring: { condfailed(p); break; }
+	  case Slist: {
+	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
+	    lua_rawgeti(L, -1, s->u.l.cur);
+	    lua_rawgeti(L, penvidx(ptop), (p+1)->i.offset);
+	    if(lua_rawequal(L, -1, -2) == 0) {
+	      lua_pop(L, 3); condfailed(p); break;
+	    }
+	    lua_pop(L, 3);
+	    p += 2;
+	    s->u.l.cur++;
+	    break;
+	  }
+	  default: { condfailed(p); }
+	}
 	continue;
       }
       case IFunc: {
@@ -925,6 +951,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
 	p++;
 	continue;
       }
+      case IString:
       case IAny:
       case IChar:
       case ISet: {
@@ -1188,8 +1215,12 @@ static int addpatt (lua_State *L, Instruction *p, int p1idx) {
   if (corr != 0) {
     Instruction *px;
     for (px = p; px < p + sz; px += sizei(px)) {
-      if (isfenvoff(px) && px->i.offset != 0)
-        px->i.offset += corr;
+      if (isfenvoff(px)) {
+	if(px->i.code == IString)
+	  (px+1)->i.offset += corr;
+	else if(px->i.offset != 0)
+	  px->i.offset += corr;
+      }
     }
   }
   return sz;
@@ -1253,7 +1284,7 @@ static void fillcharset (Instruction *p, Charset cs) {
 */
 
 static enum charsetanswer tocharset (Instruction *p, CharsetTag *c) {
-  if (ischeck(p)) {
+  if (ischeck(p) && p->i.code != IString) {
     fillcharset(p, c->cs);
     if ((p + sizei(p))->i.code == IEnd && op_step(p) == 1)
       c->tag = ISCHARSET;
@@ -1526,15 +1557,40 @@ static int concat_l (lua_State *L) {
   return 1;
 }
 
+static int isstring (Instruction *p, int psiz) {
+  int i;
+  for(i = 0; i < psiz; i++, p++) {
+    if(p->i.code != IChar) return 0;
+  }
+  return 1;
+}
+
+static void fillstring(luaL_Buffer *b, Instruction *p, int psiz) {
+  int i;
+  for(i = 0; i < psiz; i++, p++)
+    luaL_addchar(b, (char)p->i.aux);
+}
+
 static int pattlist_l (lua_State *L) {
   int l;
   Instruction *op;
   Instruction *p;
   Instruction *p1 = getpatt(L, 1, &l);
-  op = newpatt(L, 2 + l);
-  setinst(op++, IOpen, 0);
-  p = op + addpatt(L, op, 1);
-  setinst(p, IClose, 0);
+  if(isstring(p1, l)) {
+    int off;
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
+    fillstring(&b, p1, l);
+    luaL_pushresult(&b);
+    op = newpatt(L, 2);
+    setinst(op++, IString, 0);
+    setinst(op++, IString, value2fenv(L, lua_gettop(L) - 1));
+  } else {
+    op = newpatt(L, 2 + l);
+    setinst(op++, IOpen, 0);
+    p = op + addpatt(L, op, 1);
+    setinst(p, IClose, 0);
+  }
   return 1;
 }
 
