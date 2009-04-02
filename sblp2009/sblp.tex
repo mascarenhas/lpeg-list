@@ -46,7 +46,7 @@
 \newcommand{\thirtyspaces}{\twentyspaces\tenspaces}
 \newcommand{\fortyspaces}{\twentyspaces\twentyspaces}
 \newcommand{\interf}{\fivespaces}
-\newcommand{\mylabel}[1]{\ \ \mathbf{(#1)}}
+\newcommand{\mylabel}[1]{\ \textbf{(#1)}}
 \newcommand{\chmath}[1]{\mbox{`#1'}}
 
 \newcommand{\Eval}[1]{\mathrm{eval} \; #1}
@@ -62,6 +62,7 @@
 \newcommand{\Mapl}{map_{s \rightarrow l}}
 \newcommand{\Pcap}[2]{\langle#1,\,#2\rangle}
 \newcommand{\Pcapp}[3]{\langle#1,\,#2,\,#3\rangle}
+\newcommand{\Concatl}{\;}
 
 \newtheorem{proposition}{Proposition}
 
@@ -107,11 +108,7 @@ parsers for unambiguous languages.
 LPEG~\cite{roberto:lpeg, lpeg} is a pattern-matching tool based on PEGs
 for the Lua language~\cite{pil2}. LPEG uses PEGs to describe patterns
 instead of the more popular Perl-like "regular expressions" (regexes). 
-PEGs offer a way of writing patterns that is simple for
-small patterns, while providing better organization for the more complex
-patterns.
-
-The implementation of LPEG uses a \emph{virtual parsing machine},
+The implementation of LPEG is based on a \emph{virtual parsing machine},
 where each pattern translates to a program for this machine~\cite{dls:lpeg}.
 These programs are built at runtime,
 and can also be dynamically composed into bigger programs (that
@@ -119,12 +116,7 @@ represent bigger patterns). This piecemeal construction
 of programs fits both the dynamic nature of Lua programming, and the
 composability of the PEG formalism.
 
-%The parsing machine is also fast, with the performance of LPEG being similar
-%to the performance of other parser and pattern-matching tools. Moreover,
-%the machine has a very simple model, which makes its implementation easy,
-%and seems a very good candidate for a Just-In-Time (JIT) compiler.
-
-This paper is a continuation of a previous work~\cite{dls:lpeg}, where we 
+This paper is a continuation of a previous work~\cite{dls:lpeg} where we 
 have presented the full formal specification of the parsing machine, plus the
 proof of correctness of the transformation between PEG patterns and programs
 of our machine.
@@ -135,20 +127,20 @@ previously, and also extend the instruction set of the parsing machine,
 proving the transformation between PEG patterns and programs of our machine
 is still correct.
 
-We also discuss the use of semantic actions in the realm of PEGs. We extend PEGs
-again in order to support the use of semantic actions, and present how semantic
-actions are performed by the parsing machine. During the matching, the machine
-does not actually perform the actions, but only captures enough information, so
-later (after the matching) it can produce values from the captured information.
+We also discuss the use of semantic actions in the realm of PEGs, extending PEGs
+to support their use, and presenting how the virtual machine performs semantic
+actions. During the matching, the machine does not actually perform the semantic
+actions, but only captures enough information, so later (after the matching)
+it can produce values from the captured information.
 
 The performance of LPEG is compared with OMeta~\cite{warth:ometa}, a language based
 on an extension of PEGs which supports the matching of lists. Our benchmarks show
 LPEG is almost $10$ times faster than OMeta.
 
-The rest of this paper is organized as follows: Section~\ref{sec:machine} reviews
-briefly some PEG concepts and describes the virtual machine and its new operational
-semantics supporting lists; Section~\ref{sec:equivalence} proves the transformation
-between PEGs and their corresponding programs is correct; Section~\ref{sec:optimizations}
+The rest of this paper is organized as follows: Section~\ref{sec:machine} extends
+PEGs to support the matching of lists and describes the virtual parsing machine;
+Section~\ref{sec:equivalence} proves the transformation between PEGs and their
+corresponding programs in the machine is correct; Section~\ref{sec:optimizations}
 describes a new set of list-specific instructions for the machine;
 Section~\ref{sec:captures} gives an operational semantics for semantic actions
 and shows how the machine perform these actions; Section~\ref{sec:related} discusses some
@@ -168,21 +160,15 @@ otherwise, if the match fails, it gives us the result \emph{\Nothing}.
 
 We are going to define a new relation $\texttt{match}_L$, which operates on lists.
 An empty list is represented as \Emptyl. Given a character $\chmath{c}$, and a list
-$l$, by using the $cons$ operator we can build a new list $l^\prime$, which is a list
+$l$, by using the cons operator \emph{:} we can build a new list $\chmath{c}:l$, which is a list
 whose head is $\chmath{c}$, and whose tail is $l$. Given two lists $l_1$ and $l_2$,
-we can also use the $cons$ operator to build a new list $l^\prime$, which is a list
+we can also use the cons operator to build a new list $l_1:l_2$, which is a list
 whose head is $l_1$, and whose tail is $l_2$. 
-
-%We have that Below there is an example of a list,
-%where its elements are separated by commas: \\
-%\begin{math}
-%\{\chmath{a}, {\chmath{b}}, {\chmath{c}, \chmath{d}}, \chmath{e}\}
-%\end{math}
+We will represent the concatenation of two lists $l_1$ and $l_2$ by  juxstaposition.
 
 The length of a list $l$, which we will represent as $|l|$, is the number of elements
-of $l$. The empty list has length $0$, and a nonempty list $l$ has length $1$ plus the
-length of its tail. If $h$ and $t$ are respectively the head and the tail of a list $l$,
-we can represent $l$ as $h:t$. We can concatenate two lists by using the operator $++$. 
+of $l$. The empty list has length $0$, and a nonempty list $h:l$ has length $1$ plus the
+length of $l$.
 
 We will then define $\texttt{match}_L$ as a relation
 $\mathrm{Grammar} \times \mathrm{Pattern} \times \mathrm{List} \times \mathcal{N} \times (\mathcal{N} \cup \{\Nothing\})$.
@@ -190,10 +176,8 @@ We will use the notation
 $\Matchl{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in \texttt{match}_L$.
 Table~\ref{tab:patterns} presents the abstract syntax of PEG patterns with lists, and Figure~\ref{fig:semgr} presents
 the complete operational semantics of $\texttt{match}_L$.
-If a match succeeds, the result is the position in the subject after the match,
-otherwise, the result is \Nothing.
-All rules are also present in the semantics of \texttt{match}, the exception being
-rules $list.1$, and $list.2$, which are list-specific.
+All rules of the semantics of $\texttt{match}_L$ are also present in the semantics of \texttt{match},
+the exception being rules $list.1$, and $list.2$, which are list-specific.
 
 %
 \begin{table}
@@ -227,7 +211,8 @@ $\texttt{match}_L$ with the help of an auxiliary function $\Mapl$,
 which converts a string to a list. Given a string $s$, we have
 that $\Mapl(s)$ gives us a list $l$ where the first element of
 $l$ is the first character of $s$, the second element of $l$
-is the second character of $s$, and so on. Then, we are going
+is the second character of $s$, and so on. We have that the length
+of $s$ is equal to the length of $\Mapl(s)$. Then, we are going
 to state the following proposition:
 
 
@@ -255,13 +240,13 @@ rules in the semantics of $\texttt{match}_L$, the proof becomes trivial.
 \footnotesize
 \begin{align*}
 %Matching a given character
-& \textbf{Matching a character} \tenspaces 
+& \textbf{Character} \tenspaces 
 {\frac{s[i] = \chmath{c}}{\Matchl{g}{\chmath{c}}{s}{i} \leadsto \Just{i+1}}} \mylabel{ch.1} \tenspaces
 {\frac{s[i] \neq \chmath{c}}{\Matchl{g}{\chmath{c}}{s}{i} \leadsto \Nothing}} \mylabel{ch.2} \\ \\
-%Matching any character
-& \textbf{Matching any character} \tenspaces
+%Matching any element
+& \textbf{Any Element} \tenspaces
 {\frac{i \leq |s|}{\Matchl{g}{.}{s}{i} \leadsto \Just{i+1}}} \mylabel{any.1} \tenspaces
-& \tenspaces {\frac{i > |s|}{\Matchl{g}{.}{s}{i} \leadsto \Nothing}} \mylabel{any.2} \\ \\
+{\frac{i > |s|}{\Matchl{g}{.}{s}{i} \leadsto \Nothing}} \mylabel{any.2} \\ \\
 %Not
 & \textbf{Not Predicate} \tenspaces \fivespaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing} 
@@ -311,8 +296,8 @@ rules in the semantics of $\texttt{match}_L$, the proof becomes trivial.
 {\frac{\Matchl{g}{g(A_{k})}{s}{i} \leadsto \Nothing}
 	{\Matchl{g^{\prime}}{(g,A_{k})}{s}{i} \leadsto \Nothing}} \mylabel{cg.2} \\ \\
 %Lists
-& \textbf{Matching a List} \tenspaces
-{\frac{\Matchl{g}{p}{s[i]}{1} \leadsto |s[i]| + 1}
+& \textbf{List} \tenspaces
+{\frac{\Matchl{g}{p}{s[i]}{1} \leadsto \Just{$|$s[i]$|$+ 1}}
 	{\Matchl{g}{\{p\}}{s}{i} \leadsto \Just{i+1}}} \mylabel{list.1} \tenspaces
 {\frac{\Matchl{g}{p}{s[i]}{1} \neq |s[i]| + 1}
 	{\Matchl{g}{\{p\}}{s}{i} \leadsto \Nothing}} \mylabel{list.2}
@@ -330,35 +315,15 @@ which executes on a virtual parsing machine. The parsing machine has a state,
 which changes according to the instructions of a program.
 
 The machine has a program counter that addresses the next instruction to be executed,
-a register that holds the current subject, a register that holds the current position
+a register that holds the current subject, another register that holds the current position
 in the subject, and a stack that the machine uses for pushing return addresses, list
 entries, and backtrack entries. A return address is just a new value for the program counter,
-a list entry holds a subject and a position, and a backtrack entry holds an address, the subject
-and a position in the subject. The machine has the following basic instructions, where the
-instructions \texttt{Open} and \texttt{Close} were added in order to deal with lists:
+a list entry holds a subject and a position in the subject, and a backtrack entry holds an
+address, the subject and a position in the subject.
 
-\texttt{Char} \textbf{x}: tries to match the character \emph{x}
-against the current subject position, advancing one position if successful.
-
-\texttt{Any}: advances one position if the end of the subject was not
-reached; it fails otherwise.
-
-\texttt{Choice} \textbf{l}: pushes a backtrack entry on the stack,
-where \textit{l} is the offset of the alternative instruction.
-
-\texttt{Jump} \textbf{l}: relative jump to the instruction at offset \textit{l}.
-
-\texttt{Call} \textbf{l}: pushes the address of the next instruction in the stack,
-and jumps to the instruction at offset \textit{l}.
-
-\texttt{Return}: pops an address from the stack and jumps to it.
-
-\texttt{Commit} \textbf{l}: commits to a choice, popping the top entry
-from the stack, throwing it away, and jumping to the instruction at offset \textit{l}.
-
-\texttt{Fail}: forces a failure. When any failure occurs, the machine
-pops the stack until it finds a backtrack entry, then uses that entry plus the
-stack as the new machine state.
+In order to deal with lists, we are going to add the \texttt{Open} and \texttt{Close}
+instructions to the machine's set of instructions presented in ~\cite{dls:lpeg}. Below
+we have a description of these new instructions:
 
 \texttt{Open}: changes the current subject and position, pushing on the stack
 the previous values. The new current position is the beginning of the new
@@ -366,8 +331,8 @@ current subject.
 
 \texttt{Close}: if the current position points to the end of the current subject,
 this instruction pops the top entry from the stack, restoring the previous values
-for the position and the subject. If the current position does not point to the
-end of the subject, a failure occurs. Otherwise, the position in the subject is advanced.
+for the position and the subject, and then advances the position. If the current
+position does not point to the end of the subject, a failure occurs. 
 
 Figure~\ref{fig:semantics} presents the operational semantics of the parsing
 machine as a relation between machine states. The program $\mathcal{P}$ that the
@@ -380,11 +345,9 @@ $(\mathcal{N} \times \mathrm{List} \times \mathcal{N}) \cup (\mathrm{List} \time
 \cup \mathcal{N}$, where a stack position of form $\mathcal{N} \times \mathrm{List} \times \mathcal{N}$
 represents a backtrack entry, a stack position of form $\mathrm{List} \times \mathcal{N}$ represents
 a list entry, and a stack position of form $\mathcal{N}$ represents a return address.
-
 The relation $\xrightarrow{\mathrm{Instruction}}$ relates two states when the instruction
 addressed by \emph{pc} in the antecedent state matches the label, and the guard (if present)
 is valid.
-%The transitive closure of this relation is an execution of the machine. 
 %
 \begin{figure*}
 {
@@ -405,7 +368,7 @@ is valid.
       {\Sstate{pc+l}{s}{i}{e}}{}
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Call}{l}}%
       {\Sstate{pc+l}{s}{i}{(pc+1):e}}{}
-\Sstep{\Sstate{pc_0}{s}{i}{pc_1:e}}{\Ia{Return}{}}%
+\Sstep{\Sstate{pc}{s}{i}{pc_1:e}}{\Ia{Return}{}}%
       {\Sstate{pc_1}{s}{i}{e}}{}
 \Sstep{\Sstate{pc}{s}{i}{h:e}}{\Ia{Commit}{l}}%
       {\Sstate{pc+l}{s}{i}{e}}{}
@@ -422,9 +385,9 @@ is valid.
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Open}{}}%
       {\Sstate{pc+1}{\Subi}{1}{(s,i):e}}{}
 \Sstep{\Sstate{pc}{s}{i}{(s_1,i_1):e}}{\Ia{Close}{}}%
-      {\Sstate{pc+1}{s_1}{i_1+1}{e}}{i=|\Sub[i_1]|+1}
+      {\Sstate{pc+1}{s_1}{i_1+1}{e}}{i=|\Sub|+1}
 \Sstep{\Sstate{pc}{s}{i}{(s_1,i_1):e}}{\Ia{Close}{}}%
-      {\Sfail{e}}{i\neq|\Sub[i_1]|+1}
+      {\Sfail{e}}{i\neq|\Sub|+1}
 \end{array}
 \]
 }
@@ -492,7 +455,7 @@ What we are going to prove first is:
 %
 This case is related to the semantic rule $list.1$,
 where the matching of element $i$ of a list
-was successful and matched the element entirely.
+succeeds and matches the element entirely.
 We have the following sequence of transitions:
 %
 \begin{align*}
@@ -524,7 +487,7 @@ We also need to prove that:
 %
 This case is related to the semantic rule $list.2$,
 where the matching of element $i$ of a list
-failed or did not match the element entirely.
+fails or does not match the element entirely.
 Considering $n^\prime < |s[i]|+1$,  if the
 matching of $p$ succeeds and results in $n^\prime$,
 we have the following sequence of transitions:
@@ -580,10 +543,6 @@ argument.
       {\Sfail{e}}{i \neq |s|+1}
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{ChoiceOpen}{l}}%
       {\Sstate{pc+1}{\Subi}{1}{(pc+l,s,i):e}}{}
-%\Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{CloseCommit}{l}}%
-%      {\Sstate{pc+l}{s_1}{i_1+1}{e}}{i=|\Sub[i_1]|+1}
-%\Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{CloseCommit}{l}}%
-%      {\Sstate{pc_1}{s_1}{i_1}{e}}{i\neq|\Sub[i_1]|+1}
 \Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{PartialCloseCommit}{l}}%
       {\Sstate{pc+l}{s_1[i_1+1]}{1}{(pc_1,s_1,i_1+1):e}}{i=|\Sub[i_1]|+1}
 \Sstep{\Sstate{pc}{s}{i}{(pc_1,s_1,i_1):e}}{\Ia{PartialCloseCommit}{l}}%
@@ -592,7 +551,7 @@ argument.
 \]
 }
 \caption{Operational Semantics of Specialized Instructions for Lists}
-\label{fig:optimization}
+\label{fig:optimizations}
 \end{figure*}
 
 
@@ -665,7 +624,6 @@ matching of $p_2$, we have the following sequence of transitions:
 \xrightarrow{\Pi(g,x+|\Pi(g,x,p_1)|+3,p_{2})} &
     {\Sstate{pc + |\Pi(g,x, \{c_1 \dots c_n \} p_1 / p_2)|}{s}{i+k}{e}}
 \end{align*}
-
 Finally, there is an optimization related to the ordered choice of lists which
 involves the creation of a new instruction for the machine and also requires some
 pattern transformation. If we have a pattern like $\{p_1\} / \{p_2\}$, and $p_1$ fails,
@@ -713,7 +671,7 @@ transitions, where $n^\prime < |s[i]| + 1$:
 	{\Sstate{pc + |\Pi(g,x,p_1)| + 2}{s[i]}{n^\prime}{(pc + |\Pi(g,x,p_1)| + 3, s[i], 1):(s,i):e}} \\
 \xrightarrow{NotAny} \; &
 	{\Sfail{(pc + |\Pi(g,x,p_1)| + 3, s[i], 1):(s,i):e}} \\
-\xrightarrow{Fail} \; &
+\xrightarrow{} \; &
 	{\Sstate{pc + |\Pi(g,x,p_1)| + 3}{s[i]}{1}{(s,i):e}} \\
 \xrightarrow{\Pi(g,x+|\Pi(g,x,p_1)|+4, p_2)} \; &
 	{\Sstate{pc + |\Pi(g, x, \{ p_1 !. / p_2 \})|-1, p_2)}{s[i]}{|s[i]|+1}{(s,i):e}} \\
@@ -744,22 +702,25 @@ will only affect the list of captures.
 Table~\ref{tab:captures} lists the capture patterns. We have four kinds of captures:
 \emph{simple}, which captures a given portion of the subject; \emph{constant},
 which creates a constant capture; \emph{function}, which calls a given function
-with a list of captures; and \emph{fold}, which gives to a function a list of
-captures, where the given function will fold the captures, producing a single value.
+with a list of values obtained from the captures; and \emph{fold}, which folds (or
+reduces) a list of values, producing a single value.
 %
 \begin{table}
 \centering
 \begin{tabular}{|c|} \hline
 If $v$ $\in$ Value then $\Pcap{const}{v}$ $\in$ Pattern  \\ %\hline
 If $p$ $\in$ Pattern then $\Pcap{simp}{p}$ $\in$ Pattern  \\ %\hline
-If $p$ $\in$ Pattern and $f$ $\in$ $Value^* \rightarrow Value^*$ then $\Pcap{func}{f}$ $\in$ Pattern \\ %\hline
-If $p$ $\in$ Pattern and $f$ $\in$ $Value \rightarrow Value \rightarrow Value$ then $\Pcap{fold}{f}$ $\in$ Pattern \\ \hline
+If $p$ $\in$ Pattern and $f$ $\in$ $Value^* \times Value^*$ then $\Pcap{func}{f}$ $\in$ Pattern \\ %\hline
+If $p$ $\in$ Pattern and $f$ $\in$ $Value \times Value \times Value$ then $\Pcap{fold}{f}$ $\in$ Pattern \\ \hline
 \end{tabular}
 \caption{Definition of Capture Patterns}
 \label{tab:captures}
 \end{table}
 %
-Figure~\ref{fig:captures} presents the operational semantics of $\texttt{match}_L$ when dealing with these patterns,
+Figure~\ref{fig:captures} presents the new operational semantics of $\texttt{match}_L$ when dealing with captures.
+As the semantics of $\texttt{match}_L$ remains the same when a pattern fails, we did not repeat the rules related
+to an unsuccessful matching.
+cthese patterns,
 plus the new semantics of the concatenation pattern. The
 semantics of the other PEG patterns is quite the same, the only difference is that the result of a successful matching
 is now a pair $(\mathcal{N}, Capture^*)$. From now on the successful concatenation of two patterns also appends the
@@ -770,45 +731,78 @@ list of captures made by the second pattern on the list of captures made by the 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-\begin{figure*}[t]
+\begin{figure*}
 {
 \footnotesize
 \begin{align*}
+%Matching a given character
+& \textbf{Character} \fivespaces 
+{\frac{s[i] = \chmath{c}}{\Matchl{g}{\chmath{c}}{s}{i} \leadsto \Justc{i+1}{\Emptyl}}} \mylabel{ch.1} \fivespaces
+%Matching any element
+\textbf{Any Element} \fivespaces
+{\frac{i \leq |s|}{\Matchl{g}{.}{s}{i} \leadsto \Justc{i+1}{\Emptyl}}} \mylabel{any.1}  \\ \\
+%Not
+& \textbf{Not Predicate} \fivespaces
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing} 
+	{\Matchl{g}{!p}{s}{i} \leadsto \Justc{i}{\Emptyl}}} \mylabel{not.1} \fivespaces
+%And
+\textbf{And Predicate} \fivespaces
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}
+	{\Matchl{g}{\&p}{s}{i} \leadsto \Justc{i}{c}}} \mylabel{and.1}  \\ \\
 %Concatenation
 & \textbf{Concatenation} \twentyspaces
-{\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Just{i+j}{c_1} \interf \Matchl{g}{p_{2}}{s}{i+j} \leadsto \Just{(i+j+k, $c_2$)}}
-	{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Just{i+j+k}{c_1 ++ c_2}}} \mylabel{con.1} \\ \\
-&
-{\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Justc{i+j}{c_1} \interf \Matchl{g}{p_{2}}{s}{i+j} \leadsto \Nothing}
-	{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Nothing}} \mylabel{con.2} \fivespaces
-{\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Nothing}
-	{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Nothing}} \mylabel{con.3} \\ \\
+{\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Justc{i+j}{c_1} \interf \Matchl{g}{p_{2}}{s}{i+j} \leadsto \Justc{i+j+k}{c_2}}
+{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Justc{i+j+k}{c_1 \Concatl c_2}}} \mylabel{con.1} \\ \\
+%Ordered Choice
+& \textbf{Ordered Choice} \;
+{\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Justc{i+j}{c_1}}
+	{\Matchl{g}{p_{1}/p_{2}}{s}{i} \leadsto \Justc{i+j}{c_1}}} \mylabel{ord.2} \;
+{\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Nothing \;\;\; \Matchl{g}{p_{2}}{s}{i} \leadsto \Justc{i+k}{c_2}}
+	{\Matchl{g}{p_{1}/p_{2}}{s}{i} \leadsto \Justc{i+k}{c_2}}} \mylabel{ord.3} \\ \\ 
+%Repetition
+& \textbf{Repetition} \;\;
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c} \interf \Matchl{g}{p^*}{s}{i+j} \leadsto \Justc{i+j+k}{c_1}}
+	{\Matchl{g}{p^*}{s}{i} \leadsto \Justc{i+j+k}{c \Concatl c_1}}} \mylabel{rep.1} \;\;
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
+	{\Matchl{g}{p^*}{s}{i} \leadsto \Justc{i}{\Emptyl}}} \mylabel{rep.2} \\ \\
+%Variable
+& \textbf{Variables} \fivespaces
+{\frac{\Matchl{g}{g(A_{k})}{s}{i} \leadsto \Justc{i+j}{c}}
+	{\Matchl{g}{A_{k}}{s}{i} \leadsto \Justc{i+j}{c}}} \mylabel{var.1} \fivespaces
+%Closed Grammars
+\textbf{Closed Grammars} \fivespaces
+{\frac{\Matchl{g}{g(A_{k})}{s}{i} \leadsto \Justc{i+j}{c}}
+	{\Matchl{g^{\prime}}{(g,A_{k})}{s}{i} \leadsto \Justc{i+j}{c}}} \mylabel{cg.1} \tenspaces \\ \\
+%Lists
+& \textbf{List} \;\;
+{\frac{\Matchl{g}{p}{s[i]}{1} \leadsto \Justc{$|$ s[i]$|$ + 1}{c}}
+	{\Matchl{g}{\{p\}}{s}{i} \leadsto \Justc{i+1}{c}}} \mylabel{list.1} \;\;\;
 %Matching a Constant Capture
-& \textbf{Matching a Constant Capture} \tenspaces 
+\textbf{Const Capture} \;\;
 {\frac{}
 	{\Matchl{g}{\Pcap{const}{v}}{s}{i} \leadsto \Justc{i}{\{\Pcap{Const}{v}\}}}} \mylabel{const.1} \\ \\
 %Matching a Simple Capture
-& \textbf{Matching a Simple Capture} \tenspaces
+& \textbf{Simple Capture} \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
 	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Nothing}} \mylabel{simple.2} \\ \\
 & \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}
-	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Justc{i+j}{(\Pcapp{Simple}{s}{i}):c ++ \{\Pcap{Close}{j}\}}}} \mylabel{simple.1} \\ \\
+	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Justc{i+j}{(\Pcapp{simple}{s}{i}):c \Concatl \{\Pcap{close}{j}\}}}} \mylabel{simple.1} \\ \\
 %Matching a Function Capture
-& \textbf{Matching a Function Capture} \tenspaces
+& \textbf{Function Capture} \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
 	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Nothing}} \mylabel{func.2} \\ \\
 & \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}
-	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{Func}{f}:c ++ \{\Pcap{Close}{0}\}}}} \mylabel{func.1} \\ \\
+	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{func}{f} \Concatl c \Concatl \{\Pcap{close}{0}\}}}} \mylabel{func.1} \\ \\
 %Matching a Fold Capture
-& \textbf{Matching a Fold Capture} \tenspaces
-{\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}{\Matchl{g}{\Pcap{fold}{f}}{s}{i} \leadsto \Nothing}} \mylabel{fold.2} \\ \\
-& \tenspaces
+& \textbf{Fold Capture} \;
+{\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}{\Matchl{g}{\Pcap{fold}{f}}{s}{i} \leadsto \Nothing}} \mylabel{fold.2}
+\;
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}{\Matchl{g}
-	{\Pcap{fold}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{Fold}{f}:c ++ \{\Pcap{Close}{0}\}}}} \mylabel{fold.1}
+	{\Pcap{fold}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{fold}{f}:c \Concatl \{\Pcap{close}{0}\}}}} \mylabel{fold.1}
 \end{align*}
-\caption{Operational Semantics of PEG Patterns related to Captures}
+\caption{Operational Semantics of PEG Patterns with Captures}
 \label{fig:captures}
 }
 \end{figure*}
@@ -898,7 +892,7 @@ the result is an empty list of captures and a list of values obtained from the c
 {\frac{}
 	{\Eval{(\Pcap{Close}{j}:cs, vs)} = (\Pcap{Close}{j}:cs, vs)}} \mylabel{eval.2} \\ \\
 %
-& {\frac{\Eval{(cs, vs ++ \{v\})} = (cs_1, vs_1)}
+& {\frac{\Eval{(cs, vs \Concatl \{v\})} = (cs_1, vs_1)}
 	{\Eval{(\Pcap{Const}{v}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.3} \tenspaces
 {\frac{\Esimple{(s,i,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
 	{\Eval{(\Pcap{Simp}{s}{i}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.4} \\ \\
@@ -910,19 +904,19 @@ the result is an empty list of captures and a list of values obtained from the c
 %
 & %\textbf{evsimple} \tenspaces 
 {\frac{\Eval{(cs, vs)} = (cs_2, vs_2)}
-	{\Esimple{(s,i,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 ++ (sub(s, i, j)):vs_2)}} \mylabel{esimp.1} \\ \\
+	{\Esimple{(s,i,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl (sub(s, i, j)):vs_2)}} \mylabel{esimp.1} \\ \\
 & {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{Close}{j}:cs_2, vs_2) \;\;\; \Esimple{(s,i,vs_1)}{(\Pcap{Close}{j}:cs_2,vs_2)} = (cs_3, vs_3)}
 	{\Esimple{(s,i,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \, ,c \neq (\Pcap{Close}{j}) \mylabel{esimp.2} \\ \\
 %
 & %\textbf{evfunc} \tenspaces 
 {\frac{\Eval{(cs, \Emptyl)} = (cs_2, vs_2)}
-	{\Efunction{(f,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 ++ \{f (vs)\} ++ vs_2)}} \mylabel{efunc.1} \\ \\
+	{\Efunction{(f,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl \{f (vs)\} \Concatl vs_2)}} \mylabel{efunc.1} \\ \\
 & {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{Close}{j}:cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{(\Pcap{Close}{j}):cs_2),vs_2)} = (cs_3, vs_3)}
 	{\Efunction{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq \Pcap{Close}{j} \mylabel{efunc.2} \\ \\
 %
 & %\textbf{evfold} \tenspaces 
 {\frac{\Eval{(cs, \Emptyl)} = (cs_2, vs_2)}
-	{\Efold{(f,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 ++ (fold (f, vs)):vs_2)}} \mylabel{efold.1} \\ \\
+	{\Efold{(f,vs_1)}{(\Pcap{Close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl (fold (f, vs)):vs_2)}} \mylabel{efold.1} \\ \\
 & {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{Close}{j}:cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{(\Pcap{Close}{j}:cs_2),vs_2)} = (cs_3, vs_3)}
 	{\Efold{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq \Pcap{Close}{j}) \mylabel{efold.2}
 \end{align*}
@@ -956,10 +950,7 @@ it can produce the corresponding values.
 
 We have shown the implementation of our parsing machine for PEGs and its list extension is really fast.
 When compared with OMeta, which also implements an extension of PEGs which supports the matching of lists,
-the performance of LPEG is almost $10$ times better. We have also a prototypal implementation of a
-Just-In-Time (JIT) compiler for LPEG. By using the JIT we can, in general, improve the performance of a
-parsing machine's program without captures by a factor of approximately $3$.
-
+the performance of LPEG is almost $10$ times better. 
 \bibliographystyle{sbc}
 \bibliography{sblp} 
 
