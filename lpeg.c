@@ -337,6 +337,16 @@ static void printpatt (Instruction *p) {
   }
 }
 
+static void printpatts (Instruction *p, int size) {
+  Instruction *op = p;
+  printf("size: %d\n", size);
+  for (;size > 0;) {
+    printinst(op, p);
+    size -= sizei(p);
+    p += sizei(p);
+  }
+}
+
 
 static void printcap (Capture *cap) {
   printcapkind(cap->kind);
@@ -1589,7 +1599,9 @@ static int firstpart (Instruction *p, int l) {
   if (istest(p)) {
     int e = p[0].i.offset - 1;
     if ((p[e].i.code == IJmp || p[e].i.code == ICommit) &&
-        e + p[e].i.offset == l)
+        (e + p[e].i.offset == l || 
+	 (p[e-1].i.code == INotAny && e+p[e].i.offset == l-1 &&
+	  p[e+p[e].i.offset].i.code == INotAny)))
       return e + 1;
   }
   else if (p[0].i.code == IChoice) {
@@ -1635,7 +1647,7 @@ static int islist(Instruction *p, int l) {
   return (p->i.code == IOpen && (p+l-1)->i.code == IClose);
 }
 
-static Instruction *basicUnion (lua_State *L, Instruction *p1, Instruction *p2,
+static Instruction *basicUnion (lua_State *L, Instruction *p1,
 				int l1, int l2, int *size, CharsetTag *st2) {
   Instruction *op;
   CharsetTag st1;
@@ -1655,39 +1667,28 @@ static Instruction *basicUnion (lua_State *L, Instruction *p1, Instruction *p2,
   }
   else {
     /* choice L1; e1; commit L2; L1: e2; L2: ... */
-    if(islist(p1, l1) && islist(p2, l2)) {
-      Instruction *p = auxnew(L, &op, size, 1 + l1 + l2);
-      setinst(p++, IOpen, 0);
-      copypatt(p, p1, l1);
-      setinst(p, IChoice, 1 + l1); p += l1 - 1;
-      setinst(p++, INotAny, 0);
-      addpatt(L, p, 2);
-      setinst(p, ICommit, l2 - 1);
-      optimizechoice(p - l1);
-    } else {
-      Instruction *p = auxnew(L, &op, size, 1 + l1 + 1 + l2);
-      setinst(p++, IChoice, 1 + l1 + 1);
-      copypatt(p, p1, l1); p += l1;
-      setinst(p++, ICommit, 1 + l2);
-      addpatt(L, p, 2);
-      optimizechoice(p - (1 + l1 + 1));
-    }
+    Instruction *p = auxnew(L, &op, size, 1 + l1 + 1 + l2);
+    setinst(p++, IChoice, 1 + l1 + 1);
+    copypatt(p, p1, l1); p += l1;
+    setinst(p++, ICommit, 1 + l2);
+    addpatt(L, p, 2);
+    optimizechoice(p - (1 + l1 + 1));
   }
   return op;
 }
 
 
-static Instruction *separateparts (lua_State *L, Instruction *p1, Instruction *p2,
+static Instruction *separateparts (lua_State *L, Instruction *p1,
 				   int l1, int l2, int *size, CharsetTag *st2) {
   int sp = firstpart(p1, l1);
   if (sp == 0)  /* first part is entire p1? */
-    return basicUnion(L, p1, p2, l1, l2, size, st2);
+    return basicUnion(L, p1, l1, l2, size, st2);
   else if ((p1 + sp - 1)->i.code == ICommit || !interfere(p1, sp, st2)) {
     Instruction *p;
     int init = *size;
     int end = init + sp;
     *size = end;
-    p = separateparts(L, p1 + sp, p2, l1 - sp, l2, size, st2);
+    p = separateparts(L, p1 + sp, l1 - sp, l2, size, st2);
     copypatt(p + init, p1, sp);
     (p + end - 1)->i.offset = *size - (end - 1);
     return p;
@@ -1698,7 +1699,7 @@ static Instruction *separateparts (lua_State *L, Instruction *p1, Instruction *p
     int end = init + sp + 1;  /* needs one extra instruction (choice) */
     int sizefirst = sizei(p1);  /* size of p1's first instruction (the test) */
     *size = end;
-    p = separateparts(L, p1 + sp, p2, l1 - sp, l2, size, st2);
+    p = separateparts(L, p1 + sp, l1 - sp, l2, size, st2);
     copypatt(p + init, p1, sizefirst);  /* copy the test */
     (p + init)->i.offset++;  /* correct jump (because of new instruction) */
     init += sizefirst;
@@ -1721,9 +1722,28 @@ static int union_l (lua_State *L) {
     lua_pushvalue(L, 2);  /* fail / a == a */
   else if (isfail(p2) || issucc(p1))
     lua_pushvalue(L, 1);  /* a / fail == a; true / a == true */
-  else {
+  else if(islist(p1, l1) && islist(p2, l2)) {
+    Instruction *op1, *op2, *op, *p;
+    int l;
+    op1 = newpatt(L, l1 - 1);
+    jointable(L, 1);
+    lua_replace(L, 1);
+    copypatt(op1, p1 + 1, l1 - 2);
+    setinst(op1 + l1 - 2, INotAny, 0);
+    op2 = newpatt(L, l2 - 2);
+    jointable(L, 2);
+    lua_replace(L, 2);
+    copypatt(op2, p2 + 1, l2 - 2);
+    tocharset(op2, &st2);
+    separateparts(L, op1, l1 - 1, l2 - 2, &size, &st2);
+    p = getpatt(L, -1, &l);
+    op = newpatt(L, l + 2);
+    setinst(op++, IOpen, 0);
+    addpatt(L, op, -2); op += l;
+    setinst(op, IClose, 0);
+  } else {
     tocharset(p2, &st2);
-    separateparts(L, p1, p2, l1, l2, &size, &st2);
+    separateparts(L, p1, l1, l2, &size, &st2);
   }
   return 1;
 }
