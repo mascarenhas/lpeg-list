@@ -715,7 +715,7 @@ to an unsuccessful matching for the previous patterns.
 	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Nothing}} \mylabel{simple.2} \\ \\
 & \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}
-	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Justc{i+j}{(\Pcapp{simple}{s}{i}):c \Concatl \{\Pcap{close}{j}\}}}} \mylabel{simple.1} \\ \\
+	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Justc{i+j}{(\Pcapp{simp}{s}{i}):c \Concatl \{\Pcap{close}{j}\}}}} \mylabel{simple.1} \\ \\
 %Matching a Function Capture
 & \textbf{Function Capture} \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
@@ -741,35 +741,25 @@ $\mathcal{N} \times \mathrm{List} \times \mathcal{N} \times \mathrm{Stack} \time
 where we will use a symbol \emph{k} to denote the list of captures, or $\Sfail{e}$.
 Now, a backtrack entry keeps also a list of captures.
 
-The new instructions of the parsing machine are: \texttt{ConstCap}, which pushes a value on the list
-of captures; \texttt{SimpleCap}, which pusches a simple capture; \texttt{CloseCap},
-which indicates the ending of a capture; \texttt{FunctionCap}, which pushes a function capture
-on the list of captures; and \texttt{FoldCap}, which pushes a fold capture on the list of captures.
-Figure~\ref{fig:semcaptures} presents the semantics of these new instructions. The figure also presents
-the new semantics of some instructions as \texttt{Choice} and \texttt{Fail}, and shows the transitions
-related to the failure state.
-%
 \begin{figure*}
 {
 \footnotesize
 \[
 \begin{array}{rlll}
-\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{Choice}{l}}%
-      {\Sstatec{pc+1}{s}{i}{(pc+l,s,i,k):e}{k}}{}
-\Sstep{\Sstatec{pc}{s}{i}{(pc_1,s_1,i_1,k_1):e}{k}}{\Ia{PartialCommit}{l}}%
-      {\Sstatec{pc+l}{s}{i}{(pc_1,s_1,i,k):e}{k}}{}
-\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{Fail}{}}%
-      {\Sfail{e}}{}
+\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Iaa{Choice}{l}{o}}%
+      {\Sstatec{pc+1}{s}{i}{(pc+l,s,i-o,k):e}{k}}{}
 \Sstep{\Sfail{(pc,s,i,k):e}}{\mbox{\emph{any}}}%
       {\Sstatec{pc}{s}{i}{e}{k}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{ConstCap}{v}}%
-      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{Const}{v}:k}}{}
-\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{SimpleCap}{p}}%
-      {\Sstatec{pc+1}{s}{i}{e}{\Pcapp{simple}{s}{i}:k}}{}
+      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{const}{v}:k}}{}
+\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{SimpCap}{p}}%
+      {\Sstatec{pc+1}{s}{i}{e}{\Pcapp{simp}{s}{i}:k}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{FuncCap}{v}}%
       {\Sstatec{pc+1}{s}{i}{e}{\Pcap{func}{f}:k}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{FoldCap}{v}}%
       {\Sstatec{pc+1}{s}{i}{e}{\Pcap{fold}{f}:k}}{}
+\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{CloseCap}{}}%
+      {\Sstatec{pc+1}{s}{i}{e}{\Pcap{close}{i}:k}}{}
 \end{array}
 \]
 }
@@ -777,30 +767,40 @@ related to the failure state.
 \label{fig:semcaptures}
 \end{figure*}
 
+The new instructions of the parsing machine are:
+\texttt{ConstCap}, which pushes a constant capture on the list of captures;
+\texttt{SimpCap}, which pusches a simple capture;
+\texttt{FuncCap}, which pushes a function capture;
+\texttt{FoldCap}, which pushes a fold capture;
+and \texttt{CloseCap}, which pushes an entry indicating the end of a capture;
+Figure~\ref{fig:semcaptures} presents the semantics of these new instructions, plus the new semantics of
+\texttt{Choice} and \texttt{Fail} when there is backtrack entry on the top of the stack.
+
 
 \subsection{Evaluating the List of Captures}
 
-After the matching, the list of captures is evaluated, in order to produce
-the actual values.  In case of a constant capture, the final value is already on the list of
-captures. In case of a simple capture, the final value is the slice from $i$ until $j-1$ of the subject
-$s$. In case of a function capture, the function $f$ is called and receive as its parameters the values
-produced by a list of captures. The values returned by $f$ are the final values of that list of captures.
+After the matching, the list of captures is evaluated in order to produce
+the actual values.
 
-In case of a fold capture, the $f$ function will be called with the values produced by a list of captures.
-If \texttt{eval} of a list of captures produces values $v_1, v_2, \ldots, v_n$, we have that
+In case of a constant capture, the final value is already on the list of
+captures. In case of a simple capture, the final value is the slice from $i$ until $j-1$ of the subject
+$s$. In case of a function capture, the function $f$ is called and receives as its parameters the values
+produced from a list of captures. The values returned by $f$ are the final values of that list of captures.
+
+In case of a fold capture, the $f$ function will be called with the values produced from a list of captures.
+If the evaluation of a list of captures produces values $v_1, v_2, \ldots, v_n$, we have that
 $fold f v_1, v_2, \ldots, v_n$ will produce the value: $f(\ldots f(f(v_1,v_2), v_3) \ldots,v_n)$.
 If the list of values has just one value, then the result of $fold f v_1$ is $v_1$. If the list
 is empty, the result is unspecified.
 
-The \texttt{eval} function and its auxiliary functions do this job. The definition of \texttt{eval} is:
-$\mathrm{State} \times \mathrm{State}$, where $State$ is a pair $(\mathrm{Capture^*}, \mathrm{Value^*})$, where
-$Capture^*$ is a list of captures and $Value$ a list of values.
+The \texttt{eval} function and its auxiliary functions do the job of evaluating a list of captures. The
+definition of \texttt{eval} is: $\mathrm{State} \times \mathrm{State}$, where $State$ is a pair
+$(\mathrm{Capture^*}, \mathrm{Value^*})$, where $Capture^*$ is a list of captures and $Value$ a list of values.
 
 Functions \texttt{esimp}, \texttt{efunc}, and \texttt{efold} are similar to \texttt{eval}, but get also an
 extra state. In case of \texttt{esimp}, the extra state is a tuple $(\mathrm{Subject}, \mathcal{N}, \mathrm{Capture^*})$.
 In case of \texttt{efunc} and \texttt{efold}, the extra state is a tuple $(\mathrm{Function}, \mathrm{Capture^*})$.
 In all tuples, $Capture^*$ is the list of captures until the beginning of the corresponding capture.
-
 After applying \texttt{eval} to the list of captures constructed by $\mathrm{match}_L$ and an empty list of values,
 the result is an empty list of captures and a list of values obtained from the captures.
 
@@ -821,7 +821,7 @@ the result is an empty list of captures and a list of values obtained from the c
 	{\Eval{(\Pcap{close}{j}:cs, vs)} = (\Pcap{close}{j}:cs, vs)}} \mylabel{eval.2} \\ \\
 %
 & {\frac{\Eval{(cs, vs \Concatl \{v\})} = (cs_1, vs_1)}
-	{\Eval{(\Pcap{Const}{v}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.3} \tenspaces
+	{\Eval{(\Pcap{const}{v}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.3} \tenspaces
 {\frac{\Esimple{(s,i,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
 	{\Eval{(\Pcap{simp}{s}{i}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.4} \\ \\
 %
