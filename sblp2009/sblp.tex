@@ -296,46 +296,42 @@ our extended semantics is identical to the regular PEG semantics when we are dea
 }
 \end{figure*}
 
-\subsection{Parsing Machine}
+\section{Parsing Machine}
 
-In LPEG, our implementation of PEGs, each PEG pattern translates to a program,
-which executes on a virtual parsing machine. The parsing machine has a state,
-which changes according to the instructions of a program.
+In~\cite{dls:lpeg} we also presented the semantics for a parsing machine for PEGs, along with a transformation
+from PEG patterns to programs that this machine executes. The parsing machine is the core of LPEG, our implementation
+of PEGs, and is emphasizes implementation efficiency without sacrificing the expressive and parsing power of
+PEGs.
 
-The machine has a program counter that addresses the next instruction to be executed,
-a register that holds the current subject, another register that holds the current position
-in the subject, and a stack that the machine uses for pushing return addresses, list
-entries, and backtrack entries. A return address is just a new value for the program counter,
-a list entry holds a subject and a position in the subject, and a backtrack entry holds an
-address, the subject and a position in the subject.
+The machine has a program counter to address the next instruction to execute,
+a  register to hold the current position in the subject, and a stack that the machine uses for pushing
+call and backtrack frames. A call frame is just a return address for the program counter, and a backtrack frame is an
+address for the program counter and a position in the subject. The machine's instructions
+manipulate on the program counter, position register and the stack.
 
-In order to deal with lists, we are going to add the \texttt{Open} and \texttt{Close}
-instructions to the machine's set of instructions presented in ~\cite{dls:lpeg}. Below
-we have a description of these new instructions:
+To be able to translate list patterns to the parsing machine, we need to add another register to hold the current
+subject. We also need to be able to store \emph{list frames} in the stack, a list frame is a subject and a position. These
+two additions let we save the current subject and position in the stack before starting to process a sub-list that is an element
+of the current subject. We also need to add two new instructions:
 
-\texttt{Open}: changes the current subject and position, pushing on the stack
-the previous values. The new current position is the beginning of the new
-current subject.
+\begin{description}
+\item[\texttt{Open}] pushes a list frame on the stack, then changes the subject to the element at the current position. The  current position becomes $1$, the start of the new subject. Fails if the element at the current position is not a list.
 
-\texttt{Close}: if the current position points to the end of the current subject,
-this instruction pops the top entry from the stack, restoring the previous values
-for the position and the subject, and then advances the position. If the current
-position does not point to the end of the subject, a failure occurs. 
+\item[\texttt{Close}] if the current position points past the end of the subject, pops the top entry from the stack (which will be a
+list frame), setting the subject to the subject in the popped frame and the position to the position in the frame plus one. Fails if
+the current position is not pointing past the end of the subject.
+\end{description}
+
+Formally, the program counter, the subject and position registers, and the stack form a machine state. We can represent
+it as a tuple $\mathcal{N} \times \mathrm{List} \times \mathcal{N} \times \mathrm{Stack}$, in the order above. A machine state can also be a failure state, represented by $\Sfail{e}$, where $e$ is the stack. Stacks are lists of
+$(\mathcal{N} \times \mathrm{List} \times \mathcal{N}) \cup (\mathrm{List} \times \mathcal{N})
+\cup \mathcal{N}$, where $\mathcal{N} \times \mathrm{List} \times \mathcal{N}$
+represents a backtrack frame, $\mathrm{List} \times \mathcal{N}$ represents
+a list frame, and $\mathcal{N}$ represents a call frame.
 
 Figure~\ref{fig:semantics} presents the operational semantics of the parsing
 machine as a relation between machine states. The program $\mathcal{P}$ that the
-machine is executing is implicit. The state
-is either a tuple $\mathcal{N} \times \mathrm{List} \times \mathcal{N} \times \mathrm{Stack}$,
-containing the next instruction to execute (\emph{pc}), the current subject (\emph{s}),
-the current position in the subject (\emph{i}), and a stack (\emph{e}), or $\Sfail{e}$,
-a failure state with stack \emph{e}. Stacks are lists of
-$(\mathcal{N} \times \mathrm{List} \times \mathcal{N}) \cup (\mathrm{List} \times \mathcal{N})
-\cup \mathcal{N}$, where a stack position of form $\mathcal{N} \times \mathrm{List} \times \mathcal{N}$
-represents a backtrack entry, a stack position of form $\mathrm{List} \times \mathcal{N}$ represents
-a list entry, and a stack position of form $\mathcal{N}$ represents a return address.
-The relation $\xrightarrow{\mathrm{Instruction}}$ relates two states when the instruction
-addressed by \emph{pc} in the antecedent state matches the label, and the guard (if present)
-is valid.
+machine executes is implicit. The relation $\xrightarrow{\mathrm{Instruction}}$ relates two states when \emph{pc} in the first state addresses a instruction matching the label, and the guard (if present) is valid.
 %
 \begin{figure*}
 {
@@ -381,10 +377,7 @@ is valid.
 \label{fig:semantics}
 \end{figure*}
 
-
-
-\section{Transforming Patterns to Programs}
-\label{sec:equivalence}
+% parei aqui
 
 The process of translating a pattern into a program is bottom up, and done at runtime.
 The simplest patterns are translated to simple programs, and then
