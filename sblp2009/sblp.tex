@@ -853,35 +853,50 @@ Notice that the position associated with a close capture is only important when 
 \section{Related Work}
 \label{sec:related}
 
-The main inspiration of our work in extending PEGs with list patterns was OMeta~\cite{warth:ometa},
+The work most related to ours is OMeta~\cite{warth:ometa},
 an object-oriented language with pattern matching facilities based on PEGs. OMeta operates on
-streams of arbitrary host-language objects, and not just lists or characters. In~\cite{warth:thesis},
-the main author of OMeta also presents a different operational semantics for list matching. While
-the extensions of OMeta do not enforce the compatibility with original PEGs, our approach is more
-concerned about this, having proved the equivalence between the \texttt{match} and the $\texttt{match}_L$
-relations.
+lists of host-language objects. In~\cite{warth:thesis},
+the principal author of OMeta also presents an operational semantics for list matching. 
 
-In~\cite{hosoya:xml}
+While in LPEG there are specific patterns which can produce captures, in OMeta there is no such
+distinction, and a successful matching of a pattern always produces a value (generally the value that
+would be produced by a single capture in LPEG). OMeta also supports the use of semantic predicates,
+a feature that could be implemented in LPEG through the use of match time captures, which are actually
+present in the implementation of LPEG but were not discussed here.
+
+An implementation of pattern matching in Scheme supporting lists is described in~\cite{wright:pattern}.
+Although the patterns described by Wright have a semantics similar to PEG patterns, there is not possible
+to build recursive patterns, as there is no concept similar to a PEG grammar. Scheme patterns also provide
+a simplified form of capture, where is possible to capture only a slice of the subject.
+
+The use of regular expression types to describe XML documents is presented
+by~\cite{hosoya:xml, hosoya:toplas}. Regular expression types correspond to tree automata, therefore
+by using this approach it is possible to recognize a regular tree language, while by using PEGs extended
+with lists we can also recognize non-regular tree languages, thus we have a strictly greater recognition power.
+
+
 
 \section{Conclusions}
 \label{sec:conclusions}
 
 Based on the work of ~\cite{warth:ometa}, we have presented an extension of PEGs which
-allows the matching of lists, instead of just characters. According, we have also extended
+allows the matching of Lisp-style lists, instead of just characters. According, we have also extended
 the definition of our virtual parsing machine for PEGs, and we have proved the transformation
 from extended PEG patterns to programs in our parsing machine is correct.
 
 We also added new list-specific instructions to the parsing machine, in order to improve its
-performance when dealing with lists.
+performance when dealing with lists, and showed how the perfomance of the machine was affected
+by these instructions.
 
 To perform semantic actions, we extended the semantics of the $\mathrm{match}_L$ relation, adding
 new patterns related to the capture of values. During the matching, our machine does not perform
 semantic actions, it only gathers enough information about the captures so that after the matching
-it can produce the corresponding values.
+it can produce the corresponding values. The implementation of LPEG includes also other kinds of
+captures, such as a match time capture.
 
 We have shown the implementation of our parsing machine for PEGs and its list extension is really fast.
 When compared with OMeta, which also implements an extension of PEGs which supports the matching of lists,
-the performance of LPEG is almost $10$ times better. 
+the performance of LPEG is almost an order-of-magnitude better.
 \bibliographystyle{sbc}
 \bibliography{sblp} 
 
