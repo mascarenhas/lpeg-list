@@ -47,7 +47,7 @@
 \newcommand{\fortyspaces}{\twentyspaces\twentyspaces}
 \newcommand{\interf}{\fivespaces}
 \newcommand{\mylabel}[1]{\ \textbf{(#1)}}
-\newcommand{\chmath}[1]{\mbox{`#1'}}
+\newcommand{\chmath}[1]{\mbox{`}#1\mbox{'}}
 
 \newcommand{\Eval}[1]{\mathrm{eval} \; #1}
 \newcommand{\Esimple}[2]{\mathrm{esimp} \; #1\;#2}
@@ -150,9 +150,9 @@ Finally, we review related work on parsing structured data and on semantic actio
 of benchmarks comparing our extended LPEG with a PEG-based tool of similar power, showing an order-of-magnitude
 improvement.
 
-The rest of this paper is organized as follows: Section~\ref{sec:machine} extends
-PEGs with list patterns and describes the virtual parsing machine;
-Section~\ref{sec:equivalence} proves the transformation between PEGs and their
+The rest of this paper is organized as follows: Section~\ref{sec:lists} extends
+PEGs with list patterns; Section~\ref{sec:machine} describes the virtual parsing machine;
+proves the transformation between PEGs and their
 corresponding programs for the machine is correct; Section~\ref{sec:optimizations}
 describes optimizations for list patterns in our machine;
 Section~\ref{sec:captures} extends PEGs with lazy semantic actions and shows how to execute them;
@@ -160,7 +160,7 @@ Section~\ref{sec:related} reviews some related work; finally,
 Section~\ref{sec:conclusions} summarizes our results.
 
 \section{Extending PEGs for Lists}
-\label{sec:machine}
+\label{sec:lists}
 
 In~\cite{dls:lpeg}, we described a \texttt{match} relation for PEGs, 
 where we defined the relation \texttt{match} on
@@ -168,9 +168,9 @@ $\mathrm{Grammar} \times \mathrm{Pattern} \times \Sigma^{*} \times \mathcal{N} \
 Given a grammar (a map from variables to patterns), a pattern, a subject string, and a position (the subject starts at position $1$),
 the relation gives us either the position after the match (possibly the length of the subject plus $1$) or \Nothing, depending on
 whether the pattern matches the subject or not. We use 
-$\Match{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in \texttt{match}$.
+$\Matchf{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in \texttt{match}$.
 
-In this paper, we are considering lists to be List-style lists, made up from atoms and other lists. We will restrict ourselves
+In this paper, we are considering lists to be Lisp-style lists, made up from atoms and other lists. We will restrict ourselves
 to only characters as atoms. We represent the empty list as \Emptyl. Lists are inductively defined by the operator \emph{:}
 (also known as cons). If $c$ is an atom and $l$ is a list then $c:l$ is a list, and if $l_1$ and $l_2$ are lists then $l_1:l_2$ is
 a list. The first argument of $:$ is the head of the list and the second is the tail. We will use $\{ e_1 e_2 \ldots e_n \}$ as
@@ -207,15 +207,20 @@ If $p_{1}$ and $p_{2}$ $\in$ Pattern then
 %
 
 Rules $list.1$ and $list.2$ formlalize the notion that a list pattern $\{p\}$ only succeeds if the current element of the
-subject is also a list and if $p$ matches this whole sublist from the first element. Thus the pattern $\{ 'a' 'b' \}$ matches
+subject is also a list and if $p$ matches this whole sublist from the first element. Thus the pattern $\{ \chmath{a} \chmath{b} \}$ matches
 the list $\{ \chmath{a} \chmath{b} \}$ but not the list $\{ \chmath{a} \chmath{b} \chmath{c} \}$, or the atom $\chmath{a}$.
 
-The set of character strings is isomorphic to the set of lists where all elements are characters plus the empty list. Lets define $\Mapl$ as the natural mapping from strings to lists, that is, the empty string maps to the empty list, and a string $\chmath{c_1}\ldots \chmath{c_n}$ maps to $\{\chmath{c_1}\ldots \chmath{c_n}\}$. In other words, if $s$ is a string, $|s| = |\Mapl(s)|$ and
-$s[i] = \Mapl(s)[i]$ for $1 < i \leq |s|$. We then have:
+The set of character strings is isomorphic to the set of lists where all elements are characters plus the empty list. Lets define
+$\Mapl$ as the natural mapping from strings to lists, that is, the empty string maps to the empty list, and a string
+$\chmath{c_1} \ldots \chmath{c_n} $ maps to $\{ \chmath{c_1} \ldots \chmath{c_n} \}$. In other words, if $s$ is a string,
+$|s| = |\Mapl(s)|$ and $s[i] = \Mapl(s)[i]$ for $1 \leq i \leq |s|$. We then have:
 %
 \begin{equation*}
-\Matchf{G}{p}{s}{i} \leadsto j$ iff $\Matchl{G}{p}{\Mapl(s)}{i}.
+\Matchf{G}{p}{s}{i} \leadsto j \;\;\mbox{iff}\;\; \Matchl{G}{p}{\Mapl(s)}{i} \leadsto j.
 \end{equation*}
+%\begin{proposition}
+%$\Matchf{G}{p}{s}{i} \leadsto j$ iff $\Matchl{G}{p}{\Mapl(s)}{i}$.
+%\end{proposition}
 %
 with a trivial inductive proof on the height of the derivation tree, given the semantic rules are identical. In other words,
 our extended semantics is identical to the regular PEG semantics when we are dealing with string-like lists as subjects.
@@ -296,7 +301,9 @@ our extended semantics is identical to the regular PEG semantics when we are dea
 }
 \end{figure*}
 
+
 \section{Parsing Machine}
+\label{sec:machine}
 
 In~\cite{dls:lpeg} we also presented the semantics for a parsing machine for PEGs, along with a transformation
 from PEG patterns to programs that this machine executes. The parsing machine is the core of LPEG, our implementation
@@ -400,8 +407,9 @@ means the number of instructions of the program $\Pi(g,i,p)$.
 The correctness of this transformation has already been proved
 for the \texttt{match} relation. As this transformation
 remains the same after the addition of lists, and we have
-already proved Proposition~\ref{prop:match}, we just need
-to prove the extra cases corresponding to rules $list.1$
+already proved the equivalecence between \texttt{match} and
+$\texttt{match}_L$ when the subject is a string of characters,
+we just need to prove the extra cases corresponding to rules $list.1$
 and $list.2$ to prove that this transformation is also correct
 for $\texttt{match}_L$.
 
@@ -497,7 +505,7 @@ of compiling some list patterns by using pattern identities and a few extra mach
 more efficient programs.
 
 Figure~\ref{fig:optimizations} lists the instructions we are adding to the machine and their
-semantics. Let's start with a very common pattern, $\{ c_{1} \ldots c_{n} \}$, that is, a pattern that
+semantics. Let's start with a very common pattern, $\{ \chmath{c_1} \ldots \chmath{c_n} \}$, that is, a pattern that
 matches a list of $n$ characters. The current program for this pattern is an \texttt{Open} instruction
 followed by a sequence of \texttt{Char} instructions and a \texttt{Close} instruction. We can
 compile this pattern to a single \texttt{String} instruction with the string ``$c_{1} \ldots c_{2}$'' as its 
@@ -529,14 +537,14 @@ argument.
 Now that we have a single instruction that matches a whole list of characters (a list that is isomorphic to a string),
 we can do \emph{head-fail} optimizations on these tests by having a complementary \texttt{TestString} instruction
 that jumps to a label instead of failing if it does not match. This kind of failure is very common when we
-have a pattern like $\{ c_{1} \ldots c_{n} \} p_1 / p_2$, such as when matching against a tree that uses strings in the
+have a pattern like $\{ \chmath{c_1} \ldots \chmath{c_n} \} p_1 / p_2$, such as when matching against a tree that uses strings in the
 first element as tags. We can avoid pushing a backtrack entry that will be discarded most of the time
 when trying to match the tag. The compilation for the pattern above becomes:
 %
 \begin{equation*}
 \begin{split}
 \Pi(g,x, \{c_{1} \ldots c_{n} \} p_1 / p_{2}) \equiv \;
-	&{\tt TestString} \; |\Pi(g,x,p_{1})| + 3 \;\; c_1 \ldots c_n  \\
+	&{\tt TestString} \; |\Pi(g,x,p_{1})| + 3 \;\; \chmath{c_1} \ldots \chmath{c_n}  \\
 	&{\tt Choice} \; |\Pi(g,x,p_{1})| + 2 \;\;\; 1\\
 	&\Pi(g,x+2,p_{1})\\
 	&{\tt Commit } \; |\Pi(g,x,p_{2})| + 1\\
@@ -547,24 +555,24 @@ when trying to match the tag. The compilation for the pattern above becomes:
 Notice that now the \texttt{Choice} instruction takes an offset, which is subtracted from the current position
 when pushing a new backtrack entry. An offset of zero is assumed if an offset is not provided.
 
-In case of an unsuccessful match of $\{c_1 \ldots c_n\}$ and a successful
+In case of an unsuccessful match of $\{\chmath{c_1} \ldots \chmath{c_n}\}$ and a successful
 match of $p_2$, we have the following sequence of transitions:
 \begin{align*}
 \xrightarrow{TestString} &
 	{\Sstate{pc + |\Pi(g,x,p_{1})| + 3}{s}{i}{e}} \\
 \xrightarrow{\Pi(g,x+|\Pi(g,x,p_1)|+3,p_{2})} &
-    {\Sstate{pc + |\Pi(g,x, \{c_1 \dots c_n \} p_1 / p_2)|}{s}{i+k}{e}}
+    {\Sstate{pc + |\Pi(g,x, \{\chmath{c_1} \dots \chmath{c_n} \} p_1 / p_2)|}{s}{i+k}{e}}
 \end{align*}
 which is correct by induction on the correctness of $p_{2}$'s compilation.
 
 Finally, there is an interesting optimization derived from an identity between patterns. The natural way
 of writing a choice between two list patterns is $\{p_1\} / \{p_2\}$. This compiles to a \texttt{Choice} followed by
-an \texttt{Open} instruction, followed by the compilation of $p_1$, then a \texttt{Commit}, another \texttt{Open}, the compilation
-of $p_2$, and a final \texttt{Close} instruction. But when $p_1$ fails we end up trying to match $p_2$ against the same subject,
-and we have an unecessary stack pop and push (plus unecessary changes of the current subject, which can have implementation
-costs). The naive optimization is to transform this pattern to $\{ p_1 / p_2 \}$, but now if $p_1$ is a partial match and $p_2$ is a
-full match the new pattern will fail where the previous one would succeed. We can correct this by transforming the original
-pattern to $\{ p_1 !. / p_2 \}$.
+an \texttt{Open} instruction, followed by the compilation of $p_1$ and a \texttt{Close}, then a \texttt{Commit}, another
+\texttt{Open}, the compilation of $p_2$, and a final \texttt{Close} instruction. But when $p_1$ fails we end up trying
+to match $p_2$ against the same subject, and we have an unecessary stack pop and push (plus unecessary changes of the
+current subject, which can have implementation costs). The naive optimization is to transform this pattern to
+$\{ p_1 / p_2 \}$, but now if $p_1$ is a partial match and $p_2$ is a full match the new pattern will fail where
+the previous one would succeed. We can correct this by transforming the original pattern to $\{ p_1 !. / p_2 \}$.
 
 Now a partial match of $p_1$ will fail the antecedent of the choice, and if $p_2$ is a full match then the whole pattern succeeds,
 as in the original. By using the new \texttt{NotAny} instruction to compile $!.$, the new pattern compiles to:
