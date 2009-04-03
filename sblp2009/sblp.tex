@@ -386,37 +386,31 @@ machine executes is implicit. The relation $\xrightarrow{\mathrm{Instruction}}$ 
 \label{fig:semantics}
 \end{figure*}
 
-% parei aqui
-
-The process of translating a pattern into a program is bottom up, and done at runtime.
-The simplest patterns are translated to simple programs, and then
-programs are combined according to rules specific for each PEG operation.
-Programs are opaque entities for the translation process, the pattern
+The process of translating a pattern into a program is bottom up, and
+we do it at runtime. The simplest patterns translate to simple programs, and then we 
+combine programs according to the rules of each PEG operation.
+Programs are opaque entities for the translation process: the pattern
 that originated them is not important, as long as the programs are
-valid. In our implementation the process is fully incremental, and combining
+valid. The process is fully incremental, and combining
 programs is a simple matter of concatenating their texts.
 
-In~\cite{dls:lpeg}, we represent this compilation process
-using a transformation function $\mathrm{\Pi}$, which operates
-on the domain $\mathrm{Grammar} \times \mathcal{N} \times \mathrm{Pattern}$,
+In~\cite{dls:lpeg}, we represent the compilation process
+using a transformation function $\mathrm{\Pi}$ on the domain
+ $\mathrm{Grammar} \times \mathcal{N} \times \mathrm{Pattern}$,
 where $\Pi(g,i,p)$ is the translation of pattern $p$ in the
-context of grammar $g$ and with position $i$ relative to the
-beginning of the closed grammar which contains it (if the pattern
-is not part of a closed grammar then the value can be arbitrary).
-We will also use the notation $|\Pi(g,i,p)|$, which
+context of grammar $g$, with $i$ an index used just for compiling
+references to other rules in the grammar (the mechanism is fully explained
+in our previous work). We will also use the notation $|\Pi(g,i,p)|$, which
 means the number of instructions of the program $\Pi(g,i,p)$.
 
-The correctness of this transformation has already been proved
-for the \texttt{match} relation. As this transformation
-remains the same after the addition of lists, and we have
-already proved the equivalecence between \texttt{match} and
-$\texttt{match}_L$ when the subject is a string of characters,
-we just need to prove the extra cases corresponding to rules $list.1$
-and $list.2$ to prove that this transformation is also correct
-for $\texttt{match}_L$.
+The proof of correctness of this transformation is an induction on derivation
+trees. We keep all the transformation rules of the previous work, and it's
+straightforward to check the previous proof remains valid. We just have to extend
+the proof for our two new induction steps related to the $list.1$ and $list.2$ rules
+of $\tetxtt{match}_L$.
 
 Given a PEG grammar $g$, a position $i$ relative to the beginning of the grammar,
-and a pattern $\{p\}$, we have the following transformation from pattern to the
+and a pattern $\{p\}$, we have the following transformation to the
 virtual machine instructions:
 %
 \begin{equation*}
@@ -431,8 +425,7 @@ virtual machine instructions:
 The transformation for a list pattern $\{p\}$ just puts a pair of instructions \texttt{Open-Close}
 around the pattern $p$.
 
-The proof is an induction on the height of the proof tree given by the semantics of $\texttt{match}_L$.
-What we are going to prove first is:
+Now lets do our two induction steps. First we are going to prove this:
 %
 \begin{equation*}
 \begin{split}
@@ -443,8 +436,7 @@ What we are going to prove first is:
 \end{equation*}
 %
 This case is related to the semantic rule $list.1$,
-where the matching of element $i$ of a list
-succeeds and matches the element entirely.
+where $p$ matches all of the contents of element $i$ in the current subject.
 We have the following sequence of transitions:
 %
 \begin{align*}
@@ -463,8 +455,7 @@ $\Sstate{pc + |\Pi(g,i,p)| + 1}{s[i]}{|s[i]|+1}{(s, i):e}$,
 and after the \texttt{Close} instruction we reach the final
 state $\Sstate{pc + |\Pi(g,i,p)| + 2}{s}{i+1}{e}$.
 
-
-We also need to prove that:
+Now we need to prove this:
 %
 \begin{equation*}
 \begin{split}
@@ -475,27 +466,36 @@ We also need to prove that:
 \end{equation*}
 %
 This case is related to the semantic rule $list.2$,
-where the matching of element $i$ of a list
-fails or does not match the element entirely.
-Considering $n^\prime < |s[i]|+1$,  if the
-matching of $p$ succeeds and results in $n^\prime$,
-we have the following sequence of transitions:
+where $p$ does not match the contents of element $i$, or matches just
+part of them. Considering $n < |s[i]|+1$,  if $p$ matches the first $n$ elements
+of element $i$ then we have the following sequence of transitions:
 %
 \begin{align*}
 \xrightarrow{Open} \; &
 	{\Sstate{pc + 1}{s[i]}{1}{(s, i):e}} \\
 \xrightarrow{\Pi(g, i+1, p)} \; &
-	{\Sstate{pc + |\Pi(g,i,p)| + 1}{s[i]}{n^\prime}{(s, i):e}} \\
+	{\Sstate{pc + |\Pi(g,i,p)| + 1}{s[i]}{n}{(s, i):e}} \\
 \xrightarrow{Close} \; &
 	{\Sfail{e}}{}
 \end{align*}
 %
-As $n^\prime < |s[i]|+1$ the execution of the \texttt{Close}
-instruction leads the machine to a failure state.
-
-There is also the case where the matching of $p$ fails, leading
-the machine to a failure state $\Sfail{e}$ too.
-
+As $n < |s[i]|+1$ the execution of the \texttt{Close}
+instruction leads the machine to a failure state. There is also the case $p$ fails:
+%
+\begin{align*}
+\xrightarrow{Open} \; &
+	{\Sstate{pc + 1}{s[i]}{1}{(s, i):e}} \\
+\xrightarrow{\Pi(g, i+1, p)} \; &
+	{\Sstate{pc + |\Pi(g,i,p)| + 1}{s[i]}{n}{(s, i):e}} \\
+\xrightarrow{Close} \; &
+	{\Sfail{(s,i):e}}{} \\
+\rightarrow \; &
+	{\Sfail{e}}{}
+\end{align*}
+%
+This completes our proof. We have now extended both PEGs and our parsing machine to do
+matching on list-structured data. In the next section we will review a couple ways of making
+this more efficient.
 
 \section{Optimizations}
 \label{sec:optimizations}
