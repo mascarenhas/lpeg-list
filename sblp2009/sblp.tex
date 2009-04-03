@@ -128,10 +128,16 @@ can be an atom or another list). We show that our previous results hold when mat
 or slices of lists that are isomorphic to strings, and give proofs for the correctness of the
 translation of our new constructions.
 
+Extending PEGs to match structured data make PEGs useful for a larger part of the compilation/interpretation
+pipeline. A PEG-based scannerless parser can construct an abstract syntax tree, and PEG-based tree
+walkers and transformers can implement analysis and optimization passes on this tree, then either compiling
+it to a target language or evaluating it. Using the same abstraction (PEGs) for the whole pipeline of simple
+domain-specific languages can make them easier for programmers to design and implement.
+
 Adding a few extra instructions to the parsing machine enables transformation of certain
-pattern classes to more efficient programs, and we also present these optimizations. Again, we
+pattern classes to more efficient programs, and we also present these optimizations. We
 restrict ourselves to optimizations on list patterns, as our previous work has covered more general
-PEG optimizations. For each optimization, we present a proof of its correctness and a benchmark
+parsing machine optimizations. For each optimization, we present a proof of its correctness and a benchmark
 showing how effective it is.
 
 We also present an extension to the PEG formalism to include lazy semantic actions, by which
@@ -140,7 +146,7 @@ Our approach for semantic actions is lazy because the match does not execute the
 information to execute them later (in a typical implementation, right after the match finishes). This also
 means that semantic actions are free to have side-effects even in the presence of backtracking.
 
-Finally, we review related work on parsing structured data, and semantic actions for PEGs. We also present another set
+Finally, we review related work on parsing structured data and on semantic actions for PEGs. We also present another set
 of benchmarks comparing our extended LPEG with a PEG-based tool of similar power, showing an order-of-magnitude
 improvement.
 
@@ -153,36 +159,35 @@ Section~\ref{sec:captures} extends PEGs with lazy semantic actions and shows how
 Section~\ref{sec:related} reviews some related work; finally,
 Section~\ref{sec:conclusions} summarizes our results.
 
-\section{Extending PEGs with Lists}
+\section{Extending PEGs for Lists}
 \label{sec:machine}
 
-In~\cite{dls:lpeg}, we have described a \texttt{match} relation for PEGs, 
-where \texttt{match} was defined as
+In~\cite{dls:lpeg}, we described a \texttt{match} relation for PEGs, 
+where we defined the relation \texttt{match} on
 $\mathrm{Grammar} \times \mathrm{Pattern} \times \Sigma^{*} \times \mathcal{N} \times (\mathcal{N} \cup \{\Nothing\})$.
-Given a PEG grammar, a pattern, a subject and a position (position $1$ indicates the beginning of the subject),
-if the match succeeds, the relation gives us the position of the subject after the match,
-otherwise, if the match fails, it gives us the result \emph{\Nothing}.
+Given a grammar (a map from variables to patterns), a pattern, a subject string, and a position (the subject starts at position $1$),
+the relation gives us either the position after the match (possibly the length of the subject plus $1$) or \Nothing, depending on
+whether the pattern matches the subject or not. We use 
+$\Match{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in \texttt{match}$.
 
-We are going to define a new relation $\texttt{match}_L$, which operates on lists.
-An empty list is represented as \Emptyl. Given a character $\chmath{c}$, and a list
-$l$, by using the cons operator \emph{:} we can build a new list $\chmath{c}:l$, which is a list
-whose head is $\chmath{c}$, and whose tail is $l$. Given two lists $l_1$ and $l_2$,
-we can also use the cons operator to build a new list $l_1:l_2$, which is a list
-whose head is $l_1$, and whose tail is $l_2$. 
-We will represent the concatenation of two lists $l_1$ and $l_2$ by  juxstaposition.
+In this paper, we are considering lists to be List-style lists, made up from atoms and other lists. We will restrict ourselves
+to only characters as atoms. We represent the empty list as \Emptyl. Lists are inductively defined by the operator \emph{:}
+(also known as cons). If $c$ is an atom and $l$ is a list then $c:l$ is a list, and if $l_1$ and $l_2$ are lists then $l_1:l_2$ is
+a list. The first argument of $:$ is the head of the list and the second is the tail. We will use $\{ e_1 e_2 \ldots e_n \}$ as
+another way to write $e_1:e_2:\ldots :e_n:\Emptyl$.
 
-The length of a list $l$, which we will represent as $|l|$, is the number of elements
-of $l$. The empty list has length $0$, and a nonempty list $h:l$ has length $1$ plus the
-length of $l$.
+We will use $|l|$ to represent the number of elements of list $l$, and its inductive definition is trivial. We will use $l[i]$ to
+denote the $i^{th}$ element of the list, starting from $1$, which also has a straightforward inductive definition. List concatenation
+is represented by juxtaposition ($l_1l_2$ is the list with all elements of $l_1$ followed by all elements from $l_2$, not to be
+confused with $l_1:l_2$, which is a list with $l_1$ as the first element followed by the elements of $l_2$).
 
-We will then define $\texttt{match}_L$ as a relation
+Now we can define a new relation $\texttt{match}_L$ on
 $\mathrm{Grammar} \times \mathrm{Pattern} \times \mathrm{List} \times \mathcal{N} \times (\mathcal{N} \cup \{\Nothing\})$.
-We will use the notation
+This relation gives us the position in the list after trying to match a pattern given a starting position and a grammar, or
+\Nothing if the list does not match the pattern. As with \texttt{match}, we also have a notation
 $\Matchl{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in \texttt{match}_L$.
-Table~\ref{tab:patterns} presents the abstract syntax of PEG patterns with lists, and Figure~\ref{fig:semgr} presents
-the complete operational semantics of $\texttt{match}_L$.
-All rules of the semantics of $\texttt{match}_L$ are also present in the semantics of \texttt{match},
-the exception being rules $list.1$, and $list.2$, which are list-specific.
+
+Table~\ref{tab:patterns} presents the abstract syntax of PEG patterns with the new \emph{list pattern} $\{p\}$, and Figure~\ref{fig:semgr} presents an operational semantics of $\texttt{match}_L$ given as rules on the pattern structure. Except for rules $list.1$ and $list.2$, all semantic rules of $\texttt{match}_L$ are taken straight from \texttt{match}. We have that $\Matchl{G}{p}{s}{i} \leadsto j$ if we can use the rules to  build a finite derivation tree for this proposition.
 
 %
 \begin{table}
@@ -201,45 +206,23 @@ If $p_{1}$ and $p_{2}$ $\in$ Pattern then
 \end{table}
 %
 
+Rules $list.1$ and $list.2$ formlalize the notion that a list pattern $\{p\}$ only succeeds if the current element of the
+subject is also a list and if $p$ matches this whole sublist from the first element. Thus the pattern $\{ 'a' 'b' \}$ matches
+the list $\{ \chmath{a} \chmath{b} \}$ but not the list $\{ \chmath{a} \chmath{b} \chmath{c} \}$, or the atom $\chmath{a}$.
 
-
-Rule $list.1$ deals with the successful matching of a list
-element, while rule $list.2$ deals with the case of an
-unsuccessful matching of a list element.
-When trying to match an element of a list, the matching only
-succeeds when we can match the given element completely.
-If the matching of an element succeeds, the current position
-in the the subject is advanced.
-
-
-We can establish a direct relation between \texttt{match} and
-$\texttt{match}_L$ with the help of an auxiliary function $\Mapl$,
-which converts a string to a list. Given a string $s$, we have
-that $\Mapl(s)$ gives us a list $l$ where the first element of
-$l$ is the first character of $s$, the second element of $l$
-is the second character of $s$, and so on. We have that the length
-of $s$ is equal to the length of $\Mapl(s)$. Then, we are going
-to state the following proposition:
-
-
-\begin{proposition}
-\label{prop:match}
-$\Matchf{G}{p}{s}{i} \leadsto j$ iff $\Matchl{G}{p}{\Mapl(s)}{i}$.
-\end{proposition}
-
-\begin{proof}
-The proof is an induction on the height of the proof tree given by
-\texttt{match}. As there is a straightforward relationship between the
-rules of the operational semantics of \texttt{match} and the corresponding
-rules in the semantics of $\texttt{match}_L$, the proof becomes trivial.
-\end{proof}
-
-
+The set of character strings is isomorphic to the set of lists where all elements are characters plus the empty list. Lets define $\Mapl$ as the natural mapping from strings to lists, that is, the empty string maps to the empty list, and a string $\chmath{c_1}\ldots \chmath{c_n}$ maps to $\{\chmath{c_1}\ldots \chmath{c_n}\}$. In other words, if $s$ is a string, $|s| = |\Mapl(s)|$ and
+$s[i] = \Mapl(s)[i]$ for $1 < i \leq |s|$. We then have:
+%
+\begin{equation*}
+\Matchf{G}{p}{s}{i} \leadsto j$ iff $\Matchl{G}{p}{\Mapl(s)}{i}.
+\end{equation*}
+%
+with a trivial inductive proof on the height of the derivation tree, given the semantic rules are identical. In other words,
+our extended semantics is identical to the regular PEG semantics when we are dealing with string-like lists as subjects.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Operational Semantics of PEG Patterns with Grammars and Lists %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
 \begin{figure*}
 {
@@ -312,7 +295,6 @@ rules in the semantics of $\texttt{match}_L$, the proof becomes trivial.
 \label{fig:semgr}
 }
 \end{figure*}
-
 
 \subsection{Parsing Machine}
 
