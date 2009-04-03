@@ -407,7 +407,7 @@ The proof of correctness of this transformation is an induction on derivation
 trees. We keep all the transformation rules of the previous work, and it's
 straightforward to check the previous proof remains valid. We just have to extend
 the proof for our two new induction steps related to the $list.1$ and $list.2$ rules
-of $\tetxtt{match}_L$.
+of $\texttt{match}_L$.
 
 Given a PEG grammar $g$, a position $i$ relative to the beginning of the grammar,
 and a pattern $\{p\}$, we have the following transformation to the
@@ -766,6 +766,11 @@ The compilation of a pattern $\Pcap{const}{v}$, just produces an instruction $Co
 of a pattern $\Pcap{simp}{p}$, puts a pair of instructions $SimpCap-CloseCap$ around the program corresponding
 to pattern $p$. The compilation of $\Pcap{func}{f}$ and $\Pcap{fold}{f}$ is similar.
 
+The list of captures produced by the $\texttt{match}_L$ relation is equal to list of captures produced by
+the parsing machine. The proof is an extension to the previous proof of the $\texttt{match}_L$ relation,
+doing an induction on the structure of the PEG patterns.
+
+
 \subsection{Evaluating the List of Captures}
 
 After the matching, the list of captures is evaluated in order to produce
@@ -855,7 +860,6 @@ the main author of OMeta also presents a different operational semantics for lis
 the extensions of OMeta do not enforce the compatibility with original PEGs, our approach is more
 concerned about this, having proved the equivalence between the \texttt{match} and the $\texttt{match}_L$
 relations.
-
 
 In~\cite{hosoya:xml}
 
