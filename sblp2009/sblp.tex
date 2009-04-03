@@ -372,7 +372,9 @@ machine executes is implicit. The relation $\xrightarrow{\mathrm{Instruction}}$ 
 \Sstep{\Sfail{(pc,s,i):e}}{\mbox{\emph{any}}}%
       {\Sstate{pc}{s}{i}{e}}{}
 \Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Open}{}}%
-      {\Sstate{pc+1}{\Subi}{1}{(s,i):e}}{}
+      {\Sstate{pc+1}{\Subi}{1}{(s,i):e}}{\Subi \in List}
+\Sstep{\Sstate{pc}{s}{i}{e}}{\Ia{Open}{}}%
+      {\Sfail{e}}{\Subi \notin List}
 \Sstep{\Sstate{pc}{s}{i}{(s_1,i_1):e}}{\Ia{Close}{}}%
       {\Sstate{pc+1}{s_1}{i_1+1}{e}}{i=|\Sub|+1}
 \Sstep{\Sstate{pc}{s}{i}{(s_1,i_1):e}}{\Ia{Close}{}}%
@@ -846,6 +848,16 @@ Notice that the position associated with a close capture is only important when 
 \section{Related Work}
 \label{sec:related}
 
+The main inspiration of our work in extending PEGs with list patterns was OMeta~\cite{warth:ometa},
+an object-oriented language with pattern matching facilities based on PEGs. OMeta operates on
+streams of arbitrary host-language objects, and not just lists or characters. In~\cite{warth:thesis},
+the main author of OMeta also presents a different operational semantics for list matching. While
+the extensions of OMeta do not enforce the compatibility with original PEGs, our approach is more
+concerned about this, having proved the equivalence between the \texttt{match} and the $\texttt{match}_L$
+relations.
+
+
+In~\cite{hosoya:xml}
 
 \section{Conclusions}
 \label{sec:conclusions}
