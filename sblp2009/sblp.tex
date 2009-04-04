@@ -62,7 +62,7 @@
 \newcommand{\Mapl}{map_{s \rightarrow l}}
 \newcommand{\Pcap}[2]{\langle#1,\,#2\rangle}
 \newcommand{\Pcapp}[3]{\langle#1,\,#2,\,#3\rangle}
-\newcommand{\Concatl}{\;}
+\newcommand{\Concatl}{\,}
 
 \newtheorem{proposition}{Proposition}
 
@@ -140,11 +140,8 @@ restrict ourselves to optimizations on list patterns, as our previous work has c
 parsing machine optimizations. For each optimization, we present a proof of its correctness and a benchmark
 showing how effective it is.
 
-We also present an extension to the PEG formalism to include lazy semantic actions, by which
-we can extract useful information from structured data, instead of just knowing if it fits a pattern.
-Our approach for semantic actions is lazy because the match does not execute the actions, only collects enough
-information to execute them later (in a typical implementation, right after the match finishes). This also
-means that semantic actions are free to have side-effects even in the presence of backtracking.
+We also present an extension to the PEG formalism to include a mix of standard pattern matchers' captures and parser generators' semantic actions, by which we can extract useful information from structured data, instead of just knowing if it fits a pattern.
+We do this lazily, with the match just collecting enough information to extract captures and execute actions later (in a typical implementation, right after the match finishes). This means that semantic actions are free to have side-effects even in the presence of backtracking.
 
 Finally, we review related work on parsing structured data and on semantic actions for PEGs. We also present another set
 of benchmarks comparing our extended LPEG with a PEG-based tool of similar power, showing an order-of-magnitude
@@ -213,15 +210,10 @@ the list $\{ \chmath{a} \chmath{b} \}$ but not the list $\{ \chmath{a} \chmath{b
 The set of character strings is isomorphic to the set of lists where all elements are characters plus the empty list. Lets define
 $\Mapl$ as the natural mapping from strings to lists, that is, the empty string maps to the empty list, and a string
 $\chmath{c_1} \ldots \chmath{c_n} $ maps to $\{ \chmath{c_1} \ldots \chmath{c_n} \}$. In other words, if $s$ is a string,
-$|s| = |\Mapl(s)|$ and $s[i] = \Mapl(s)[i]$ for $1 \leq i \leq |s|$. We then have:
-%
+$|s| = |\Mapl(s)|$ and $s[i] = \Mapl(s)[i]$ for $1 \leq i \leq |s|$. We then have
 \begin{equation*}
 \Matchf{G}{p}{s}{i} \leadsto j \;\;\mbox{iff}\;\; \Matchl{G}{p}{\Mapl(s)}{i} \leadsto j.
 \end{equation*}
-%\begin{proposition}
-%$\Matchf{G}{p}{s}{i} \leadsto j$ iff $\Matchl{G}{p}{\Mapl(s)}{i}$.
-%\end{proposition}
-%
 with a trivial inductive proof on the height of the derivation tree, given the semantic rules are identical. In other words,
 our extended semantics is identical to the regular PEG semantics when we are dealing with string-like lists as subjects.
 
@@ -410,9 +402,7 @@ the proof for our two new induction steps related to the $list.1$ and $list.2$ r
 of $\texttt{match}_L$.
 
 Given a PEG grammar $g$, a position $i$ relative to the beginning of the grammar,
-and a pattern $\{p\}$, we have the following transformation to the
-virtual machine instructions:
-%
+and a pattern $\{p\}$, we have
 \begin{equation*}
 \begin{split}
 \Pi(g, i, \{p\}) \equiv \;
@@ -421,12 +411,9 @@ virtual machine instructions:
 	&{\tt Close}
 \end{split}
 \end{equation*}
-%
-The transformation for a list pattern $\{p\}$ just puts a pair of instructions \texttt{Open-Close}
-around the pattern $p$.
+as its transformation to virtual machine instructions.
 
-Now lets do our two induction steps. First we are going to prove this:
-%
+Now lets do our two induction steps. First we are going to prove 
 \begin{equation*}
 \begin{split}
 &\texttt{If } \Matchl{g}{\{p\}}{s}{i} = \Just{i+1} \texttt{ then}\\
@@ -434,11 +421,9 @@ Now lets do our two induction steps. First we are going to prove this:
 	{\Sstate{pc + |\Pi(g,i,p)| + 2}{s}{i+1}{e}}{}
 \end{split}
 \end{equation*}
-%
-This case is related to the semantic rule $list.1$,
+using the semantic rule $list.1$,
 where $p$ matches all of the contents of element $i$ in the current subject.
-We have the following sequence of transitions:
-%
+We have
 \begin{align*}
 \xrightarrow{Open} \; &
 	{\Sstate{pc + 1}{s[i]}{1}{(s, i):e}} \\
@@ -447,7 +432,7 @@ We have the following sequence of transitions:
 \xrightarrow{Close} \; &
 	{\Sstate{pc + |\Pi(g,i,p)| + 2}{s}{i+1}{e}}
 \end{align*}
-%
+as the sequence of transitions the machine executes.
 After the \texttt{Open} instruction, the subject becomes
 $s[i]$, and the current position is $1$. By induction
 we know the execution of $\Pi(g, i+1, p)$ leads to
@@ -455,8 +440,7 @@ $\Sstate{pc + |\Pi(g,i,p)| + 1}{s[i]}{|s[i]|+1}{(s, i):e}$,
 and after the \texttt{Close} instruction we reach the final
 state $\Sstate{pc + |\Pi(g,i,p)| + 2}{s}{i+1}{e}$.
 
-Now we need to prove this:
-%
+Now we need to prove
 \begin{equation*}
 \begin{split}
 &\texttt{If } \Matchl{g}{\{p\}}{s}{i} = \Nothing \texttt{ then}\\
@@ -464,12 +448,10 @@ Now we need to prove this:
 	{\Sfail{e}}{}
 \end{split}
 \end{equation*}
-%
-This case is related to the semantic rule $list.2$,
+using semantic rule $list.2$,
 where $p$ does not match the contents of element $i$, or matches just
 part of them. Considering $n < |s[i]|+1$,  if $p$ matches the first $n$ elements
-of element $i$ then we have the following sequence of transitions:
-%
+of element $i$ then we have
 \begin{align*}
 \xrightarrow{Open} \; &
 	{\Sstate{pc + 1}{s[i]}{1}{(s, i):e}} \\
@@ -478,10 +460,8 @@ of element $i$ then we have the following sequence of transitions:
 \xrightarrow{Close} \; &
 	{\Sfail{e}}{}
 \end{align*}
-%
-As $n < |s[i]|+1$ the execution of the \texttt{Close}
-instruction leads the machine to a failure state. There is also the case $p$ fails:
-%
+as the sequence of transitions. As $n < |s[i]|+1$ the execution of the \texttt{Close}
+instruction leads the machine to a failure state. There is also the case where $p$ fails, with
 \begin{align*}
 \xrightarrow{Open} \; &
 	{\Sstate{pc + 1}{s[i]}{1}{(s, i):e}} \\
@@ -492,8 +472,9 @@ instruction leads the machine to a failure state. There is also the case $p$ fai
 \rightarrow \; &
 	{\Sfail{e}}{}
 \end{align*}
-%
-This completes our proof. We have now extended both PEGs and our parsing machine to do
+being the transitions, and completing our proof. 
+
+We have now extended both PEGs and our parsing machine to do
 matching on list-structured data. In the next section we will review a couple ways of making
 this more efficient.
 
@@ -541,8 +522,7 @@ we can do \emph{head-fail} optimizations on these tests by having a complementar
 that jumps to a label instead of failing if it does not match. This kind of failure is very common when we
 have a pattern like $\{ \chmath{c_1} \ldots \chmath{c_n} \} p_1 / p_2$, such as when matching against a tree that uses strings in the
 first element as tags. We can avoid pushing a backtrack entry that will be discarded most of the time
-when trying to match the tag. The compilation for the pattern above becomes:
-%
+when trying to match the tag. The compilation for the pattern above becomes
 \begin{equation*}
 \begin{split}
 \Pi(g,x, \{c_{1} \ldots c_{n} \} p_1 / p_{2}) \equiv \;
@@ -553,19 +533,18 @@ when trying to match the tag. The compilation for the pattern above becomes:
 	&\Pi(g,x+|\Pi(g,x,p_1)|+3,p_{2})
 \end{split}
 \end{equation*}
-%
-Notice that now the \texttt{Choice} instruction takes an offset, which is subtracted from the current position
+with the \texttt{Choice} instruction now taking an offset, which we subtract from the current position
 when pushing a new backtrack entry. An offset of zero is assumed if an offset is not provided.
 
 In case of an unsuccessful match of $\{\chmath{c_1} \ldots \chmath{c_n}\}$ and a successful
-match of $p_2$, we have the following sequence of transitions:
+match of $p_2$, we have
 \begin{align*}
 \xrightarrow{TestString} &
 	{\Sstate{pc + |\Pi(g,x,p_{1})| + 3}{s}{i}{e}} \\
 \xrightarrow{\Pi(g,x+|\Pi(g,x,p_1)|+3,p_{2})} &
     {\Sstate{pc + |\Pi(g,x, \{\chmath{c_1} \dots \chmath{c_n} \} p_1 / p_2)|}{s}{i+k}{e}}
 \end{align*}
-which is correct by induction on the correctness of $p_{2}$'s compilation.
+as the sequence of transitions, which is correct by induction on the correctness of $p_{2}$'s compilation.
 
 Finally, there is an interesting optimization derived from an identity between patterns. The natural way
 of writing a choice between two list patterns is $\{p_1\} / \{p_2\}$. This compiles to a \texttt{Choice} followed by
@@ -577,8 +556,7 @@ $\{ p_1 / p_2 \}$, but now if $p_1$ is a partial match and $p_2$ is a full match
 the previous one would succeed. We can correct this by transforming the original pattern to $\{ p_1 !. / p_2 \}$.
 
 Now a partial match of $p_1$ will fail the antecedent of the choice, and if $p_2$ is a full match then the whole pattern succeeds,
-as in the original. By using the new \texttt{NotAny} instruction to compile $!.$, the new pattern compiles to:
-%
+as in the original. By using the new \texttt{NotAny} instruction to compile $!.$, the new pattern compiles to
 \begin{equation*}
 \begin{split}
 \Pi(g, x, \{ p_1 !. / p_2\}) \equiv \;
@@ -591,9 +569,8 @@ as in the original. By using the new \texttt{NotAny} instruction to compile $!.$
 	&{\tt Close} \; 
 \end{split}
 \end{equation*}
-%
-Which avoids the extra work of the original pattern, and incidentally opens the patterns to further head-fail optimization. 
-A full proof of the identity, and the correctness of compiling $!.$ to \texttt{NotAny}, are straightforward inductions on
+avoiding the extra work of the original pattern, and incidentally opening the patterns to further head-fail optimization. 
+Full proofs of the identity, and the correctness of compiling $!.$ to \texttt{NotAny}, are straightforward inductions on
 derivation trees.
 
 We have implemented these optimizations on LPEG, and evaluated their effectiveness on a few simple benchmarks. The
@@ -602,43 +579,57 @@ the base LPEG, LPEG with the string optimization, and LPEG with the string and l
 The benchmarks are on the vertical axis: the \emph{string} benchmark uses a concatenation of string-like
 patterns (150,000 iterations), the \emph{headfail} benchmark uses an ordered choice of these patterns (15,000 iterations), and the \emph{choice} benchmark uses an ordered choice of lists of string-like patterns (40,000 iterations). The benchmarks with ordered choice use subjects that match each alternative of the choice.
 
-% TODO: add graph here
+\begin{figure}
+\begin{center}
+\includegraphics[width=0.6\textwidth]{microbench.pdf}
+\end{center}
+\caption{Benchmark results of list optimizations}
+\end{figure}
 
 \section{Captures}
 \label{sec:captures}
 
-In LPEG, a capture is a mix of conventional captures with semantic
-actions. In order to add captures, we need to change the $\texttt{match}_L$
-relation, which now becomes:
-$\mathrm{Grammar} \times \mathrm{Pattern} \times \mathrm{List} \times \mathcal{N} \times ((\mathcal{N}, Capture^*) \cup \{\Nothing\})$,
-where $Capture^*$ represents a list of captures.
-%We will use the notation
-%$\Matchl{G}{p}{s}{i} \leadsto (j,c)$ to indicate that $(G, p, s, i, (j, c)) \in \texttt{match}_L$.
+Recognizing whether a subject fits a pattern is seldom what we just want from a pattern matcher; usually we also
+want to extract parts of the subject that fit parts of the pattern, or do some computation on these parts. If our subject
+is an abstract syntax tree for a programming language, for example, we may want to do a pattern-directed evaluation
+of this tree, or generate a new tree by transforming the old (converting to an intermediate representation closer to machine
+code, doing optimizations, or naively compiling to machine code, for example). Pattern matchers usually offer a way of
+extracting parts of the subject via \emph{captures}, while parser generators have \emph{semantic actions} executed when
+parsing each rule of a grammar. In this section we are going to combine both concepts and add them to our formalization of
+PEGs. The rest for the section refers to both captures and actions as just \emph{captures}.
 
-The use of captures does not affect the matching of a subject, if a matching was successful without the
-use of captures, it will still be successful if we do it again using captures. Therefore, the use of capture
-patterns, whose syntax is listed in Table~\ref{tab:captures}, will only affect the list of captures.
+We will define four kinds of captures: \emph{simple}, which just captures a slice of the current subject; \emph{constant},
+used to inject external values so other captures can use them; \emph{function}, a semantic action proper, which applies
+a given function to a list of captured values and passes the result to other captures; and \emph{fold}, which folds (or reduces)
+a list of captured values using a supplied binary function, passing the result to other captures.
 
-We have four kinds of captures: \emph{simple}, which captures a given portion of the subject;
-\emph{constant}, which creates a constant capture; \emph{function}, which calls a given function
-with a list of values obtained from the captures; and \emph{fold}, which folds (or reduces) a list
-of values, producing a single value.
+In the previous paragraph we say that captures can pass values to other captures, this is due to the nesting property of PEG patterns. A capture is a pattern, too, with the syntax in Table~\ref{tab:captures}, and, except for constant captures, all captures have nested
+patterns (Value $\equiv$ List $\cup$ Atom). Simple captures take the slice of the subject that their nested capture matches. Function and fold captures consume
+the values produced by their nested captures.
 %
 \begin{table}
 \centering
 \begin{tabular}{|c|} \hline
 If $v$ $\in$ Value then $\Pcap{const}{v}$ $\in$ Pattern  \\ %\hline
 If $p$ $\in$ Pattern then $\Pcap{simp}{p}$ $\in$ Pattern  \\ %\hline
-If $p$ $\in$ Pattern and $f$ $\in$ $Value^* \times Value^*$ then $\Pcap{func}{f}$ $\in$ Pattern \\ %\hline
-If $p$ $\in$ Pattern and $f$ $\in$ $Value \times Value \times Value$ then $\Pcap{fold}{f}$ $\in$ Pattern \\ \hline
+If $p$ $\in$ Pattern and $f$ $\in$ List $\rightarrow$ List then $\Pcap{func}{f}$ $\in$ Pattern \\ %\hline
+If $p$ $\in$ Pattern and $f$ $\in$ Value $\times$ Value $\rightarrow$ Value then $\Pcap{fold}{f}$ $\in$ Pattern \\ \hline
 \end{tabular}
-\caption{Syntax of Capture Patterns}
+\caption{Syntax of capture patterns}
 \label{tab:captures}
 \end{table}
 %
-Figure~\ref{fig:captures} presents the new operational semantics of $\texttt{match}_L$ when dealing with captures.
-As the semantics of $\texttt{match}_L$ remains the same when a pattern fails, we did not repeat the rules related
-to an unsuccessful matching for the previous patterns. 
+An important characteristic of our specification of captures is that no values are extracted and no functions applied when
+trying to match patterns; matching capture patterns just pushes information about these captures in a \emph{list of captures}, such as the current subject and position, the function that we have to apply, etc. To get the values and execute the semantic actions
+we need to evaluate this list after a successful match. This means that the functions used in function and fold captures can
+have side-effects in languages that have them without causing problems with the backtracking. Furthermore, we will specify 
+captures in our parsing machine in a way that if $p$ matches and yields a list of captures $c$ then compiling $p$ and executing
+it on the parsing machine will yield the same list of captures, so we will have a single evaluation function for both patterns and programs.
+
+Formally, we have to extend our $\texttt{match}_L$ relation, which now becomes:
+$\mathrm{Grammar} \times \mathrm{Pattern} \times \mathrm{List} \times \mathcal{N} \times ((\mathcal{N}, Capture^*) \cup \{\Nothing\})$, where $Capture^*$ is a list of captures. Naturally, the notation
+$\Matchl{G}{p}{s}{i} \leadsto (j,c)$ means $(G, p, s, i, (j, c)) \in \texttt{match}_L$.  Figure~\ref{fig:captures} presents the operational semantics of $\texttt{match}_L$ with captures. We elided the cases where the new rule is just the old one with a list of captures
+added to the result of the match, as well as the cases where a pattern fails and the list of captures is discarded.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Operational Semantics of PEG with Captures %%%
@@ -701,31 +692,28 @@ to an unsuccessful matching for the previous patterns.
 	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Nothing}} \mylabel{simple.2} \\ \\
 & \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}
-	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Justc{i+j}{(\Pcapp{simp}{s}{i}):c \Concatl \{\Pcap{close}{j}\}}}} \mylabel{simple.1} \\ \\
+	{\Matchl{g}{\Pcap{simp}{p}}{s}{i} \leadsto \Justc{i+j}{(\Pcapp{simp}{s}{i}):c \Concatl \{\Pcap{close}{i+j}\}}}} \mylabel{simple.1} \\ \\
 %Matching a Function Capture
 & \textbf{Function Capture} \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
 	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Nothing}} \mylabel{func.2} \\ \\
 & \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}
-	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{func}{f} \Concatl c \Concatl \{\Pcap{close}{j}\}}}} \mylabel{func.1} \\ \\
+	{\Matchl{g}{\Pcap{func}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{func}{f} \Concatl c \Concatl \{\Pcap{close}{i+j}\}}}} \mylabel{func.1} \\ \\
 %Matching a Fold Capture
 & \textbf{Fold Capture} \;
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}{\Matchl{g}{\Pcap{fold}{f}}{s}{i} \leadsto \Nothing}} \mylabel{fold.2}
 \;
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}{\Matchl{g}
-	{\Pcap{fold}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{fold}{f}:c \Concatl \{\Pcap{close}{j}\}}}} \mylabel{fold.1}
+	{\Pcap{fold}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{fold}{f}:c \Concatl \{\Pcap{close}{i+j}\}}}} \mylabel{fold.1}
 \end{align*}
 \caption{Operational Semantics of PEG Patterns with Captures}
 \label{fig:captures}
 }
 \end{figure*}
 
-Accordingly, we also need to change the state of the parsing machine and to add new instructions
-to deal with captures. The state of our machine is now either a tuple
-$\mathcal{N} \times \mathrm{List} \times \mathcal{N} \times \mathrm{Stack} \times \mathrm{Capture^*}$,
-where we will use a symbol \emph{k} to denote the list of captures, or $\Sfail{e}$.
-Now, a backtrack entry keeps also a list of captures.
+We also have to extend the definition of our parsing machine (Figure~\ref{fig:semcaptures}, adding the list of captures to its non-failure states ($k$ in the figure). Backtrack frames also need to keep the current list of captures along with subject and position.
+We also add five new instructions to the machine, to add the correct capture tuples in the list of captures.
 
 \begin{figure*}
 {
@@ -738,7 +726,7 @@ Now, a backtrack entry keeps also a list of captures.
       {\Sstatec{pc}{s}{i}{e}{k}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{ConstCap}{v}}%
       {\Sstatec{pc+1}{s}{i}{e}{k \Concatl \{\Pcap{const}{v}\}}}{}
-\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{SimpCap}{p}}%
+\Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{SimpCap}{}}%
       {\Sstatec{pc+1}{s}{i}{e}{k \Concatl \{\Pcapp{simp}{s}{i}\}}}{}
 \Sstep{\Sstatec{pc}{s}{i}{e}{k}}{\Ia{FuncCap}{v}}%
       {\Sstatec{pc+1}{s}{i}{e}{k \Concatl \{\Pcap{func}{f}\}}}{}
@@ -753,51 +741,37 @@ Now, a backtrack entry keeps also a list of captures.
 \label{fig:semcaptures}
 \end{figure*}
 
-The new instructions of the parsing machine are:
-\texttt{ConstCap}, which pushes a constant capture on the list of captures;
-\texttt{SimpCap}, which pusches a simple capture;
-\texttt{FuncCap}, which pushes a function capture;
-\texttt{FoldCap}, which pushes a fold capture;
-and \texttt{CloseCap}, which pushes an entry indicating the end of a capture;
-Figure~\ref{fig:semcaptures} presents the semantics of these new instructions, plus the new semantics of
-\texttt{Choice} and \texttt{Fail} when there is backtrack entry on the top of the stack.
+Compiling capture patterns is straightforward. Pattern $\Pcap{const}{v}$ compiles to just ${\tt ConstCap} \; v$. Pattern
+$\Pcap{simp}{p}$ compiles to
+\begin{equation*}
+\begin{split}
+\Pi(g,x,\Pcap{simp}{p}) \equiv \;
+	&{\tt SimpCap} \\
+	&\Pi(g,x+1,p) \\
+	&{\tt CloseCap}  \\
+\end{split}
+\end{equation*}
+with analogous compilation for function and fold captures, replacing \texttt{SimpCap} with ${\tt FuncCap} \; f$ or
+${\tt FoldCap} \; f$, respectively.
 
-The compilation of a pattern $\Pcap{const}{v}$, just produces an instruction $ConstCap \; v$. The compilation
-of a pattern $\Pcap{simp}{p}$, puts a pair of instructions $SimpCap-CloseCap$ around the program corresponding
-to pattern $p$. The compilation of $\Pcap{func}{f}$ and $\Pcap{fold}{f}$ is similar.
+Proving that if $\Matchl{G}{p}{s}{i} \leadsto (i+j,c)$ then
+$\Sstatec{pc}{s}{i}{e}{k} \xrightarrow{\Pi(g,x,p)} \Sstatec{pc+|\Pi(g,x,p)|}{s}{i+j}{e}{kc}$ is also an induction on derivation trees. We will
+show the case where $\Matchl{G}{\Pcap{simp}{p}}{s}{i} \leadsto \Justc{i+j}{(\Pcapp{simp}{s}{i}):c \Concatl \{\Pcap{close}{i+j}\}}$. The
+corresponding machine transitions are
+\begin{align*}
+\xrightarrow{SimpCap} &
+	{\Sstatec{pc + 1}{s}{i}{e}{k \Concatl \{\Pcapp{simp}{s}{i}\}}} \\
+\xrightarrow{\Pi(g,x+1,p)} &
+    {\Sstatec{pc + |\Pi(g,x, p)| + 1}{s}{i+j}{e}{k \Concatl (\Pcapp{simp}{s}{i}):c}} \\
+\xrightarrow{CloseCap} &
+    {\Sstatec{pc + |\Pi(g,x, p)| + 2}{s}{i+j}{e}{k \Concatl (\Pcapp{simp}{s}{i}):c \Concatl \{\Pcap{close}{i+j}\}}}
+\end{align*}
+with the second transition using our induction hypotesis.
 
-The list of captures produced by the $\texttt{match}_L$ relation is equal to list of captures produced by
-the parsing machine. The proof is an extension to the previous proof of the $\texttt{match}_L$ relation,
-doing an induction on the structure of the PEG patterns.
+Now we will define an $eval: Capture^* \times List \rightarrow Capture^* \times List$ function that yields a list of values when applied to a list of captures and an initial list of values (usually empty). Figure~\ref{fig:eval} is an inductive definition of eval, using convenience functions (also inductively defined) for simple, function, and fold captures. The notation $s[i,j]$ takes a slice of the list $s$ from position $i$ to position $j$ (including element $i$ but not element $j$). Function $fold: (Value \times Value \rightarrow Value) \times List \rightarrow Value$ is the common left fold function.
 
-
-\subsection{Evaluating the List of Captures}
-
-After the matching, the list of captures is evaluated in order to produce
-the actual values.
-
-In case of a constant capture, the final value is already on the list of
-captures. In case of a simple capture, the final value is the slice from $i$ until $j-1$ of the subject
-$s$. In case of a function capture, the function $f$ is called and receives as its parameters the values
-produced from a list of captures. The values returned by $f$ are the final values of that list of captures.
-
-In case of a fold capture, the $f$ function will be called with the values produced from a list of captures.
-If the evaluation of a list of captures produces values $v_1, v_2, \ldots, v_n$, we have that
-$fold f v_1, v_2, \ldots, v_n$ will produce the value: $f(\ldots f(f(v_1,v_2), v_3) \ldots,v_n)$.
-If the list of values has just one value, then the result of $fold f v_1$ is $v_1$. If the list
-is empty, the result is unspecified.
-
-The \texttt{eval} function and its auxiliary functions do the job of evaluating a list of captures. The
-definition of \texttt{eval} is: $\mathrm{State} \times \mathrm{State}$, where $State$ is a pair
-$(\mathrm{Capture^*}, \mathrm{Value^*})$, where $Capture^*$ is a list of captures and $Value$ a list of values.
-
-Functions \texttt{esimp}, \texttt{efunc}, and \texttt{efold} are similar to \texttt{eval}, but get also an
-extra state. In case of \texttt{esimp}, the extra state is a tuple $(\mathrm{Subject}, \mathcal{N}, \mathrm{Capture^*})$.
-In case of \texttt{efunc} and \texttt{efold}, the extra state is a tuple $(\mathrm{Function}, \mathrm{Capture^*})$.
-In all tuples, $Capture^*$ is the list of captures until the beginning of the corresponding capture.
-After applying \texttt{eval} to the list of captures constructed by $\mathrm{match}_L$ and an empty list of values,
-the result is an empty list of captures and a list of values obtained from the captures.
-Notice that the position associated with a close capture is only important when evaluating a simple capture.
+After applying \texttt{eval} to the list of captures constructed by $\mathrm{match}_L$ (or our machine) and an empty list of values,
+the result is an empty list of captures and a list of captured values.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Operational Semantics of eval %%%%
@@ -806,49 +780,32 @@ Notice that the position associated with a close capture is only important when 
 \begin{figure*}[t]
 {
 \footnotesize
-\begin{align*}
-%Not
-& %\textbf{eval} \tenspaces
-{\frac{}
-	{\Eval{(\Emptyl,v)} = (\Emptyl,v)}}  \mylabel{eval.1} \tenspaces 
-{\frac{}
-	{\Eval{(\Pcap{close}{j}:cs, vs)} = (\Pcap{close}{j}:cs, vs)}} \mylabel{eval.2} \\ \\
 %
-& {\frac{\Eval{(cs, vs \Concatl \{v\})} = (cs_1, vs_1)}
-	{\Eval{(\Pcap{const}{v}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.3} \tenspaces
-{\frac{\Esimple{(s,i,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
-	{\Eval{(\Pcap{simp}{s}{i}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.4} \\ \\
-%
-& {\frac{\Efunction{(f,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
-	{\Eval{(\Pcap{func}{f}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.5} \tenspaces
-{\frac{\Efold{(f,vs)}{(cs, \Emptyl)} = (cs_1, vs_1)}
-	{\Eval{(\Pcap{fold}{f}:cs, vs)} = (cs_1, vs_1)}} \mylabel{eval.6} \\ \\
-%
-& %\textbf{evsimple} \tenspaces 
-{\frac{\Eval{(cs, vs)} = (cs_2, vs_2)}
-	{\Esimple{(s,i,vs_1)}{(\Pcap{close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl (sub(s, i, j)):vs_2)}} \mylabel{esimp.1} \\ \\
-& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{close}{j}:cs_2, vs_2) \;\;\; \Esimple{(s,i,vs_1)}{(\Pcap{close}{j}:cs_2,vs_2)} = (cs_3, vs_3)}
-	{\Esimple{(s,i,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \, ,c \neq (\Pcap{close}{j}) \mylabel{esimp.2} \\ \\
-%
-& %\textbf{evfunc} \tenspaces 
-{\frac{\Eval{(cs, \Emptyl)} = (cs_2, vs_2)}
-	{\Efunction{(f,vs_1)}{(\Pcap{close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl \{f (vs)\} \Concatl vs_2)}} \mylabel{efunc.1} \\ \\
-& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{close}{j}:cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{(\Pcap{close}{j}):cs_2),vs_2)} = (cs_3, vs_3)}
-	{\Efunction{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq \Pcap{close}{j} \mylabel{efunc.2} \\ \\
-%
-& %\textbf{evfold} \tenspaces 
-{\frac{\Eval{(cs, \Emptyl)} = (cs_2, vs_2)}
-	{\Efold{(f,vs_1)}{(\Pcap{close}{j}:cs, vs)} = (cs_2, vs_1 \Concatl (fold (f, vs)):vs_2)}} \mylabel{efold.1} \\ \\
-& {\frac{\Eval{(c:cs, \Emptyl)} = (\Pcap{close}{j}:cs_2, vs_2) \;\;\; \Efunction{(f,vs_1)}{(\Pcap{close}{j}:cs_2),vs_2)} = (cs_3, vs_3)}
-	{\Efold{(f,vs_1)}{(c:cs, vs)} = (cs_3, vs_3)}}  \; ,\,c \neq \Pcap{close}{j}) \mylabel{efold.2}
-\end{align*}
+\begin{center}
+\(
+\begin{array}{rcl}
+\Eval{(\Emptyl,v)} & = & (\Emptyl,v) \\
+\Eval{(\Pcap{close}{i}:c, v)} & = & (\Pcap{close}{i}:c, v) \\
+\Eval{(\Pcap{const}{x}:c, v)} & = & \Eval{(c, v \Concatl \{x\})} \\
+\Eval{(\Pcapp{simp}{s}{i}:c, v)} & = & \Esimple{(s,i,v,(c,\Emptyl))}{} \\
+\Eval{(\Pcap{func}{f}:c, v)} & = & \Efunction{(f,v,(c,\Emptyl)))}{} \\
+\Eval{(\Pcap{fold}{f}:c, v)} & = & \Efold{(f,v,(c,\Emptyl)))}{} \\
+\\ 
+\Esimple{(s,i,v_1,(\Pcap{close}{j}:c, v_2))}{} & = & \Eval{(c, v_1  (s[i, j]:v_2))} \\
+\Esimple{(s,i,v_1,(c, v_2))}{} & = & \Esimple{(s,i,v_1,\Eval{(c, v_2)})}{} \\
+\\ 
+\Efunction{(f,v_1,(\Pcap{close}{j}:c, v_2))}{} & = & \Eval{(c, v_1 \Concatl f(v_2))} \\
+\Efunction{(f,v_1,(c, v_2))}{} & = & \Efunction{(f,v_1,\Eval{(c, v_2)})}{} \\
+\\
+\Efold{(f,v_1,(\Pcap{close}{j}:c, v_2))}{} & = & \Eval{(c, v_1 \Concatl \{ fold(f,v_2) \})} \\
+\Efold{(f,v_1,(c, v_2))}{} & = & \Efold{(f,v_1,\Eval{(c, v_2)})}{} 
+\end{array}
+\)
+\end{center}
 }
-\caption{Operational Semantics of \texttt{eval}, \texttt{esimp}, \texttt{efunc}, and \texttt{efold}}
+\caption{Inductive definitions of \texttt{eval}, \texttt{esimp}, \texttt{efunc}, and \texttt{efold}}
 \label{fig:eval}
 \end{figure*}
-
-
-
 
 \section{Related Work}
 \label{sec:related}
