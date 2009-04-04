@@ -280,23 +280,23 @@ dealing with string-like lists as subjects.
 %Matching a given character
 & \textbf{Character} \tenspaces 
 {\frac{s[i] = \chmath{c}}{\Matchl{g}{\chmath{c}}{s}{i} \leadsto \Just{i+1}}} \mylabel{ch.1} \tenspaces
-{\frac{s[i] \neq \chmath{c}}{\Matchl{g}{\chmath{c}}{s}{i} \leadsto \Nothing}} \mylabel{ch.2} \\ 
+{\frac{s[i] \neq \chmath{c}}{\Matchl{g}{\chmath{c}}{s}{i} \leadsto \Nothing}} \mylabel{ch.2} \\
 %Matching any element
 & \textbf{Any Element} \tenspaces
 {\frac{i \leq |s|}{\Matchl{g}{.}{s}{i} \leadsto \Just{i+1}}} \mylabel{any.1} \tenspaces
-{\frac{i > |s|}{\Matchl{g}{.}{s}{i} \leadsto \Nothing}} \mylabel{any.2} \\ 
+{\frac{i > |s|}{\Matchl{g}{.}{s}{i} \leadsto \Nothing}} \mylabel{any.2} \\
 %Not
 & \textbf{Not Predicate} \tenspaces \fivespaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing} 
 	{\Matchl{g}{!p}{s}{i} \leadsto \Just{i}}} \mylabel{not.1} \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Just{i+j}}
-	{\Matchl{g}{!p}{s}{i} \leadsto \Nothing}} \mylabel{not.2} \\ 
+	{\Matchl{g}{!p}{s}{i} \leadsto \Nothing}} \mylabel{not.2} \\
 %And
 & \textbf{And Predicate} \tenspaces \fivespaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Just{i+j}}
 	{\Matchl{g}{\&p}{s}{i} \leadsto \Just{i}}} \mylabel{and.1} \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
-	{\Matchl{g}{\&p}{s}{i} \leadsto \Nothing}} \mylabel{and.2} \\ 
+	{\Matchl{g}{\&p}{s}{i} \leadsto \Nothing}} \mylabel{and.2} \\
 %Concatenation
 & \textbf{Concatenation} \twentyspaces
 {\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Just{i+j} \interf \Matchl{g}{p_{2}}{s}{i+j} \leadsto \Just{i+j+k}}
@@ -314,7 +314,7 @@ dealing with string-like lists as subjects.
 {\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Just{i+j}}
 	{\Matchl{g}{p_{1}/p_{2}}{s}{i} \leadsto \Just{i+j}}} \mylabel{ord.2} \tenspaces
 {\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Nothing \interf \Matchl{g}{p_{2}}{s}{i} \leadsto \Just{i+k}}
-	{\Matchl{g}{p_{1}/p_{2}}{s}{i} \leadsto \Just{i+k}}} \mylabel{ord.3} \\ 
+	{\Matchl{g}{p_{1}/p_{2}}{s}{i} \leadsto \Just{i+k}}} \mylabel{ord.3} \\
 %Repetition
 & \textbf{Repetition} \;\;\;
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Just{i+j} \interf \Matchl{g}{p^*}{s}{i+j} \leadsto \Just{i+j+k}}
@@ -340,7 +340,7 @@ dealing with string-like lists as subjects.
 {\frac{\Matchl{g}{p}{s[i]}{1} \neq \Just{$|s[i]|$ + 1}}
 	{\Matchl{g}{\{p\}}{s}{i} \leadsto \Nothing}} \mylabel{list.2}
 \end{align*}
-\caption{Operational Semantics of PEGs with Lists}
+\caption{Operational semantics of PEGs with list patterns}
 \label{fig:semgr}
 }
 \end{figure*}
@@ -446,7 +446,7 @@ guard (if present) is valid.
 \end{array}
 \]
 }
-\caption{Operational Semantics of the Parsing Machine}
+\caption{Operational semantics of the parsing machine}
 \label{fig:semantics}
 \end{figure*}
 
@@ -589,7 +589,7 @@ string ``$c_{1} \ldots c_{2}$'' as its argument.
 \end{array}
 \]
 }
-\caption{Operational Semantics of Specialized Instructions for Lists}
+\caption{Operational semantics of extra instructions for optimization}
 \label{fig:optimizations}
 \end{figure*}
 
@@ -785,7 +785,7 @@ a pattern fails and the list of captures is discarded.
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Justc{i+j}{c}}{\Matchl{g}
 	{\Pcap{fold}{f}}{s}{i} \leadsto \Justc{i+j}{\Pcap{fold}{f}:c \Concatl \{\Pcap{close}{i+j}\}}}} \mylabel{fold.1}
 \end{align*}
-\caption{Operational Semantics of PEG Patterns with Captures}
+\caption{Operational semantics of PEGs with capture patterns}
 \label{fig:captures}
 }
 \end{figure*}
@@ -819,7 +819,7 @@ capture tuples in the list of captures.
 \end{array}
 \]
 }
-\caption{Operational Semantics of the Parsing Machine using Captures}
+\caption{Operational semantics of instructions for captures}
 \label{fig:semcaptures}
 \end{figure*}
 
@@ -913,8 +913,8 @@ Lua programming language.
 
 First we will evaluate the optimizations of
 Section~\ref{sec:optimizations} with a few simple benchmarks. The
-results are summarized on Figure~\ref{fig:microbench}, a graph showing
-the running time of the benchmarks for the base LPEG, LPEG with the
+results are summarized on the left graph of Figure~\ref{fig:microbench},
+showing the running time of the benchmarks for the base LPEG, LPEG with the
 string optimization, and LPEG with the string and list choice
 optimization.
 
@@ -957,15 +957,16 @@ grammar is
 \end{verbatim}
 
 We run both benchmarks both with captures and semantic actions and for
-matching only. Figure~\ref{fig:bench2} summarized the results. They
+matching only. The right graph of Figure~\ref{fig:microbench} summarized the results. They
 show that list processing with LPEG is about as efficient as writing
 your own list-processing code.
 
 \begin{figure}
 \begin{center}
-\includegraphics[width=0.6\textwidth]{microbench.pdf}
+\includegraphics[width=0.49\textwidth]{microbench.pdf}
+\includegraphics[width=0.49\textwidth]{microbench.pdf}
 \end{center}
-\caption{Benchmark results of list optimizations}
+\caption{Benchmark results}
 \end{figure}
 
 \section{Related Work}
@@ -991,7 +992,7 @@ paper due to space, but LPEG has a similar mechanism called a
 
 Several programming languages, mostly in the ML family, include built-in pattern matching
 facilities to help define functions over structured
-data~\cite{milner:ml,hutton:haskell}. The patterns are limited, not
+data~\cite{spj:functional,spj:haskell}. The patterns are limited, not
 providing any looping of repetition operators, or the ability to
 reference other patterns. Pattern variables capture data from the
 subject, and are bound to parameters of the functions.
@@ -1011,7 +1012,15 @@ these types can reference other patterns (recursion is also
 supported), but they are restricted to recognizing regular tree
 languages, a restriction PEGs do not have.
 
-Finally, parser combinator... % PORRA
+Finally, parser combinators are a popular
+approach for building recursive-descent parsers in 
+functional programming languages~\cite{hutton:monadic1}.
+Parser combinators combine simple parsers using operators such as deterministic
+or non-deterministic choice, sequencing, chaining, etc. Although originally
+designed for parsing character streams, parsing combinator libraries can
+be trivially applied to parsing structured data. Their unrestricted
+backtracking can have a large time and space cost (naive implementations are
+particularly prone to space leaks~\cite{leijen:parsec}).
 
 \section{Conclusions}
 \label{sec:conclusions}
