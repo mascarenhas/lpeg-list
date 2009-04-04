@@ -1988,7 +1988,7 @@ static int getlabel (lua_State *L, int labelidx) {
 static int capture_aux (lua_State *L, int kind, int labelidx) {
   int l1, n, list;
   Instruction *p1 = getpatt(L, 1, &l1);
-  if(islist(p1, l1) && kind == Cfunction && kind == Ctable) {
+  if(islist(p1, l1) && kind == Cfunction) {
     Instruction *p = newpatt(L, l1 - 1);
     jointable(L, 1);
     copypatt(p, p1 + 1, l1 - 2);
