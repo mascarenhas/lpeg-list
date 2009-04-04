@@ -874,7 +874,11 @@ by~\cite{hosoya:xml, hosoya:toplas}. Regular expression types correspond to tree
 by using this approach it is possible to recognize a regular tree language, while by using PEGs extended
 with lists we can also recognize non-regular tree languages, thus we have a strictly greater recognition power.
 
-
+Some programming languages as ML~\cite{milner:ml} and Haskell~\cite{hutton:haskell} offer facilities for
+deconstruct structured data, but these facilities can only be used to match the top-level structure of a
+data, and do not involve the use of backtracking or recursive mechanisms. Haskell also offers parser combinators,
+which are a more powerful mechanism, which supports backtracking and allows the matching of complex
+structured data.
 
 \section{Conclusions}
 \label{sec:conclusions}
