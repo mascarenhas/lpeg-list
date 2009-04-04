@@ -53,6 +53,8 @@ local p = re.compile([[
           mul = function (x, y) return x * y end,
           div = function (x, y) return x / y end, })
 
+m.print(p)
+
 local p2 = re.compile([[ exp <- { "add", <exp>, <exp> } /
 				{ "sub", <exp>, <exp> } /
 			        { "mul", <exp>, <exp> } /
@@ -90,30 +92,29 @@ for _, exp in ipairs(exps_vals) do
   assert(math.floor(p:match{ exp.exp }) == exp.val)
 end
 
-local t1 = os.clock()
-for i = 1, 1000 do
-  p:match{ exps[i] }
+local function f1()
+   for i = 1, 1000 do
+      assert(p:match{exps[i]})
+   end
 end
-local t2 = os.clock()
-print(t2 - t1)
 
-local t1 = os.clock()
-for i = 1, 1000 do
-  p2:match{ exps[i] }
+local function f2()
+   for i = 1, 1000 do
+      assert(p2:match{exps[i]})
+   end
 end
-local t2 = os.clock()
-print(t2 - t1)
 
-local t1 = os.clock()
-for i = 1, 1000 do
-  p3(exps[i])
+local function f3()
+   for i = 1, 1000 do
+      assert(p3(exps[i]))
+   end
 end
-local t2 = os.clock()
-print(t2 - t1)
 
-local t1 = os.clock()
-for i = 1, 1000 do
-  p4(exps[i])
+local function f4()
+   for i = 1, 1000 do
+      assert(p4(exps[i]))
+   end
 end
-local t2 = os.clock()
-print(t2 - t1)
+
+return f1, f2, f3, f4
+
