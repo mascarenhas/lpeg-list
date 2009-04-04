@@ -1986,8 +1986,18 @@ static int getlabel (lua_State *L, int labelidx) {
 
 
 static int capture_aux (lua_State *L, int kind, int labelidx) {
-  int l1, n;
+  int l1, n, list;
   Instruction *p1 = getpatt(L, 1, &l1);
+  if(islist(p1, l1) && kind == Cfunction && kind == Ctable) {
+    Instruction *p = newpatt(L, l1 - 1);
+    jointable(L, 1);
+    copypatt(p, p1 + 1, l1 - 2);
+    setinst(p + l1 - 2, INotAny, 0);
+    lua_replace(L, 1);
+    capture_aux(L, kind, labelidx);
+    lua_replace(L, 1);
+    return pattlist_l(L);
+  }
   int lc = skipchecks(p1, 0, &n);
   if (lc == l1) {  /* got whole pattern? */
     /* may use a IFullCapture instruction at its end */

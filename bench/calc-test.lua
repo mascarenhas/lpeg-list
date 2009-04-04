@@ -43,11 +43,11 @@ local function select(n, t) return t[n] end
 re = require "listre"
 
 local p = re.compile([[
-			 exp <- { ("add", <exp>, <exp>) -> add
-				/ ("sub", <exp>, <exp>) -> sub
-			        / ("mul", <exp>, <exp>) -> mul
-			        / ("div", <exp>, <exp>)  -> div
-			        / ("num", <.>) }
+			 exp <- { "add", <exp>, <exp> } -> add
+				/ { "sub", <exp>, <exp> } -> sub
+			        / { "mul", <exp>, <exp> } -> mul
+			        / { "div", <exp>, <exp> }  -> div
+			        / { "num", <.> }
     ]], { add = function (x, y) return x + y end, 
           sub = function (x, y) return x - y end,
           mul = function (x, y) return x * y end,
@@ -58,16 +58,6 @@ local p2 = re.compile([[ exp <- { "add", <exp>, <exp> } /
 			        { "mul", <exp>, <exp> } /
 			        { "div", <exp>, <exp> } /
 			        { "num", . } ]])
-
---[[			 exp <- { ("add", <exp>, <exp>) 
-				/ ("sub", <exp>, <exp>) 
-			        / ("mul", <exp>, <exp>) 
-			        / ("div", <exp>, <exp>)  
-			        / ("num", .) } ]]
-
-
-
-m.print(p2)
 
 local exp_ops = { add = true, mul = true, div = true, sub = true }
 
