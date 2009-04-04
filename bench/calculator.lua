@@ -42,18 +42,18 @@ local function select(n, t) return t[n] end
 
 re = require "listre"
 
+local add = function (x, y) return x + y end 
+local sub = function (x, y) return x - y end
+local mul = function (x, y) return x * y end
+local div = function (x, y) return x / y end
+
 local p = re.compile([[
 			 exp <- { "add", <exp>, <exp> } -> add
 				/ { "sub", <exp>, <exp> } -> sub
 			        / { "mul", <exp>, <exp> } -> mul
 			        / { "div", <exp>, <exp> }  -> div
 			        / { "num", <.> }
-    ]], { add = function (x, y) return x + y end, 
-          sub = function (x, y) return x - y end,
-          mul = function (x, y) return x * y end,
-          div = function (x, y) return x / y end, })
-
-m.print(p)
+    ]], { add = add, sub = sub, mul = mul, div = div })
 
 local p2 = re.compile([[ exp <- { "add", <exp>, <exp> } /
 				{ "sub", <exp>, <exp> } /
@@ -61,26 +61,35 @@ local p2 = re.compile([[ exp <- { "add", <exp>, <exp> } /
 			        { "div", <exp>, <exp> } /
 			        { "num", . } ]])
 
-local exp_ops = { add = true, mul = true, div = true, sub = true }
-
 local function p3(exp)
-  if exp_ops[exp[1]] then
-    return #exp == 3 and p3(exp[2]) and p3(exp[3])
-  elseif exp[1] == "num" then
-    return #exp == 2
+  if #exp == 3 and exp[1] == "add" then
+     return add(p3(exp[2]), p3(exp[3]))
+  elseif #exp == 3 and exp[1] == "sub" then 
+     return sub(p3(exp[2]), p3(exp[3]))
+  elseif #exp == 3 and exp[1] == "mul" then
+     return mul(p3(exp[2]), p3(exp[3]))
+  elseif #exp == 3 and exp[1] == "div" then
+     return div(p3(exp[2]), p3(exp[3]))
+  elseif #exp == 2 and exp[1] == "num" then
+     return exp[2]
   else
-    return false
+     return nil
   end
 end
 
 local function p4(exp)
-  if exp[1] == "add" or exp[1] == "sub" or 
-     exp[1] == "mul" or exp[1] == "div" then
-    return #exp == 3 and p4(exp[2]) and p4(exp[3])
-  elseif exp[1] == "num" then
-    return #exp == 2
+  if #exp == 3 and exp[1] == "add" then
+     return p3(exp[2]) and p3(exp[3])
+  elseif #exp == 3 and exp[1] == "sub" then 
+     return p3(exp[2]) and p3(exp[3])
+  elseif #exp == 3 and exp[1] == "mul" then
+     return p3(exp[2]) and p3(exp[3])
+  elseif #exp == 3 and exp[1] == "div" then
+     return p3(exp[2]) and p3(exp[3])
+  elseif #exp == 2 and exp[1] == "num" then
+     return true
   else
-    return false
+     return false
   end
 end
 
@@ -90,6 +99,7 @@ local exps_vals = loadfile("exps_vals.lua")()
 
 for _, exp in ipairs(exps_vals) do
   assert(math.floor(p:match{ exp.exp }) == exp.val)
+  assert(math.floor(p3( exp.exp )) == exp.val)
 end
 
 local function f1()

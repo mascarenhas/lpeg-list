@@ -114,6 +114,116 @@ local function test()
    assert(linkextract:match{tree}[2] == "http://twistedmatrix.com")
 end
 
-test()
+local function linkextract2(tree)
+   local links = {}
+   for _, tag in ipairs(tree) do
+      if #tag == 3 and tag[1] == "a" then
+	 local href
+	 for _, attr in ipairs(tag[2]) do
+	    if #attr == 2 and attr[1] == "href" then
+	       if href then
+		  href = nil
+		  break
+	       end
+	       href = attr[2]
+	    elseif #attr ~= 2 then
+	       href = nil
+	       break
+	    end
+	 end
+	 links[#links+1] = href
+	 for _, link in ipairs(linkextract2(tag[3])) do links[#links+1] = link end
+      elseif #tag == 3 and tag[1] == "img" then
+	 local src
+	 for _, attr in ipairs(tag[2]) do
+	    if #attr == 2 and attr[1] == "src" then
+	       if src then
+		  src = nil
+		  break
+	       end
+	       src = attr[2]
+	    elseif #attr ~= 2 then
+	       src = nil
+	       break
+	    end
+	 end
+	 links[#links+1] = src
+	 for _, link in ipairs(linkextract2(tag[3])) do links[#links+1] = link end
+      elseif #tag == 3 and tag[3] then
+	 for _, link in ipairs(linkextract2(tag[3])) do links[#links+1] = link end
+      end
+   end
+   return links
+end
 
-return test
+local function test2()
+   assert(#linkextract2(tree) == 2)
+   assert(linkextract2(tree)[1] == "HIPPO.JPG")
+   assert(linkextract2(tree)[2] == "http://twistedmatrix.com")
+end
+
+test()
+test2()
+
+local linkextract_matchonly = re.compile([[
+  html <- <contents> 
+  contents <- { <tag>* }
+  tag <- { "a", <href>, <contents> }
+         / { "img", <src>, <contents> }
+         / { ., ., <contents> } 
+         / .
+  href <- { { (!"href" .), . }*,
+	    { "href", . },
+            { (!"href" .), . }* }
+  src <- { { (!"src" .), . }*,
+	   { "src", (.) },
+           { (!"src" .), . }* }
+]])
+
+local function linkextract2_matchonly(tree)
+   for _, tag in ipairs(tree) do
+      if #tag == 3 and tag[1] == "a" then
+	 local href
+	 for _, attr in ipairs(tag[2]) do
+	    if #attr == 2 and attr[1] == "href" then
+	       if href then
+		  return false
+	       end
+	       href = true
+	    elseif #attr ~= 2 then
+	       return false
+	    end
+	 end
+	 return linkextract2_matchonly(tag[3])
+      elseif #tag == 3 and tag[1] == "img" then
+	 local src
+	 for _, attr in ipairs(tag[2]) do
+	    if #attr == 2 and attr[1] == "src" then
+	       if src then
+		  return false
+	       end
+	       src = true
+	    elseif #attr ~= 2 then
+	       return false
+	    end
+	 end
+	 return linkextract2_matchonly(tag[3])
+      elseif #tag == 3 and tag[3] then
+	 return linkextract2_matchonly(tag[3])
+      end
+   end
+   return true
+end
+
+local function test3()
+   assert(linkextract_matchonly:match{ tree } == 2)
+end
+local function test4()
+   assert(linkextract2_matchonly(tree))
+end
+
+test3()
+test4()
+
+return test, test2
+
