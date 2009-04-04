@@ -273,66 +273,66 @@ dealing with string-like lists as subjects.
 %%%% Operational Semantics of PEG Patterns with Grammars and Lists %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{figure*}
+\begin{figure*}[t]
 {
 \footnotesize
 \begin{align*}
 %Matching a given character
 & \textbf{Character} \tenspaces 
 {\frac{s[i] = \chmath{c}}{\Matchl{g}{\chmath{c}}{s}{i} \leadsto \Just{i+1}}} \mylabel{ch.1} \tenspaces
-{\frac{s[i] \neq \chmath{c}}{\Matchl{g}{\chmath{c}}{s}{i} \leadsto \Nothing}} \mylabel{ch.2} \\ \\
+{\frac{s[i] \neq \chmath{c}}{\Matchl{g}{\chmath{c}}{s}{i} \leadsto \Nothing}} \mylabel{ch.2} \\ 
 %Matching any element
 & \textbf{Any Element} \tenspaces
 {\frac{i \leq |s|}{\Matchl{g}{.}{s}{i} \leadsto \Just{i+1}}} \mylabel{any.1} \tenspaces
-{\frac{i > |s|}{\Matchl{g}{.}{s}{i} \leadsto \Nothing}} \mylabel{any.2} \\ \\
+{\frac{i > |s|}{\Matchl{g}{.}{s}{i} \leadsto \Nothing}} \mylabel{any.2} \\ 
 %Not
 & \textbf{Not Predicate} \tenspaces \fivespaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing} 
 	{\Matchl{g}{!p}{s}{i} \leadsto \Just{i}}} \mylabel{not.1} \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Just{i+j}}
-	{\Matchl{g}{!p}{s}{i} \leadsto \Nothing}} \mylabel{not.2} \\ \\
+	{\Matchl{g}{!p}{s}{i} \leadsto \Nothing}} \mylabel{not.2} \\ 
 %And
 & \textbf{And Predicate} \tenspaces \fivespaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Just{i+j}}
 	{\Matchl{g}{\&p}{s}{i} \leadsto \Just{i}}} \mylabel{and.1} \tenspaces
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
-	{\Matchl{g}{\&p}{s}{i} \leadsto \Nothing}} \mylabel{and.2} \\ \\
+	{\Matchl{g}{\&p}{s}{i} \leadsto \Nothing}} \mylabel{and.2} \\ 
 %Concatenation
 & \textbf{Concatenation} \twentyspaces
 {\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Just{i+j} \interf \Matchl{g}{p_{2}}{s}{i+j} \leadsto \Just{i+j+k}}
-{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Just{i+j+k}}} \mylabel{con.1} \\ \\
+{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Just{i+j+k}}} \mylabel{con.1}  \\
 & \fivespaces
 {\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Just{i+j} \interf \Matchl{g}{p_{2}}{s}{i+j} \leadsto \Nothing}
 	{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Nothing}} \mylabel{con.2} \fivespaces
 {\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Nothing}
-	{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Nothing}} \mylabel{con.3} \\ \\
+	{\Matchl{g}{p_{1}p_{2}}{s}{i} \leadsto \Nothing}} \mylabel{con.3} \\
 %Ordered Choice
 & \textbf{Ordered Choice} \twentyspaces
 {\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Nothing \interf \Matchl{g}{p_{2}}{s}{i} \leadsto \Nothing}
-	{\Matchl{g}{p_{1}/p_{2}}{s}{i} \leadsto \Nothing}} \mylabel{ord.1} \\ \\
+	{\Matchl{g}{p_{1}/p_{2}}{s}{i} \leadsto \Nothing}} \mylabel{ord.1} \\
 & \fivespaces
 {\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Just{i+j}}
 	{\Matchl{g}{p_{1}/p_{2}}{s}{i} \leadsto \Just{i+j}}} \mylabel{ord.2} \tenspaces
 {\frac{\Matchl{g}{p_{1}}{s}{i} \leadsto \Nothing \interf \Matchl{g}{p_{2}}{s}{i} \leadsto \Just{i+k}}
-	{\Matchl{g}{p_{1}/p_{2}}{s}{i} \leadsto \Just{i+k}}} \mylabel{ord.3} \\ \\ 
+	{\Matchl{g}{p_{1}/p_{2}}{s}{i} \leadsto \Just{i+k}}} \mylabel{ord.3} \\ 
 %Repetition
 & \textbf{Repetition} \;\;\;
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Just{i+j} \interf \Matchl{g}{p^*}{s}{i+j} \leadsto \Just{i+j+k}}
 	{\Matchl{g}{p^*}{s}{i} \leadsto \Just{i+j+k}}} \mylabel{rep.1} \;\;
 {\frac{\Matchl{g}{p}{s}{i} \leadsto \Nothing}
-	{\Matchl{g}{p^*}{s}{i} \leadsto \Just{i}}} \mylabel{rep.2} \\ \\
+	{\Matchl{g}{p^*}{s}{i} \leadsto \Just{i}}} \mylabel{rep.2} \\
 %Variable
 & \textbf{Variables} \twentyspaces
 {\frac{\Matchl{g}{g(A_{k})}{s}{i} \leadsto \Just{i+j}}
 	{\Matchl{g}{A_{k}}{s}{i} \leadsto \Just{i+j}}} \mylabel{var.1} \tenspaces
 {\frac{\Matchl{g}{g(A_{k})}{s}{i} \leadsto \Nothing}
-	{\Matchl{g}{A_{k}}{s}{i} \leadsto \Nothing}} \mylabel{var.2} \\ \\
+	{\Matchl{g}{A_{k}}{s}{i} \leadsto \Nothing}} \mylabel{var.2} \\
 %Closed Grammars
 & \textbf{Closed Grammars} \tenspaces \fivespaces
 {\frac{\Matchl{g}{g(A_{k})}{s}{i} \leadsto \Just{i+j}}
 	{\Matchl{g^{\prime}}{(g,A_{k})}{s}{i} \leadsto \Just{i+j}}} \mylabel{cg.1} \tenspaces
 {\frac{\Matchl{g}{g(A_{k})}{s}{i} \leadsto \Nothing}
-	{\Matchl{g^{\prime}}{(g,A_{k})}{s}{i} \leadsto \Nothing}} \mylabel{cg.2} \\ \\
+	{\Matchl{g^{\prime}}{(g,A_{k})}{s}{i} \leadsto \Nothing}} \mylabel{cg.2} \\
 %Lists
 & \textbf{List} \tenspaces
 {\frac{\Matchl{g}{p}{s[i]}{1} \leadsto \Just{$|s[i]|$+ 1}}
@@ -404,7 +404,7 @@ $\xrightarrow{\mathrm{Instruction}}$ relates two states when \emph{pc}
 in the first state addresses a instruction matching the label, and the
 guard (if present) is valid.
 %
-\begin{figure*}
+\begin{figure*}[ht]
 {
 \footnotesize
 \[
@@ -571,7 +571,7 @@ compile this pattern to a single \texttt{String} instruction with the
 string ``$c_{1} \ldots c_{2}$'' as its argument.
 
 %
-\begin{figure*}
+\begin{figure*}[ht]
 {\footnotesize
 \[
 \begin{array}{rlll}
@@ -743,7 +743,7 @@ a pattern fails and the list of captures is discarded.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-\begin{figure*}
+\begin{figure*}[t]
 {
 \footnotesize
 \begin{align*}
@@ -797,7 +797,7 @@ keep the current list of captures along with subject and position.  We
 also add five new instructions to the machine, to add the correct
 capture tuples in the list of captures.
 
-\begin{figure*}
+\begin{figure*}[t]
 {
 \footnotesize
 \[
@@ -950,16 +950,10 @@ extracts a list of all values of \texttt{src} attributes from
 grammar is
 \begin{verbatim}
   html <- { <tag>* }
-  tag <- { "a" <href> <html> }
-         / { "img" <src> <html> }
-         / { . . <html> } 
-         / .
-  href <- { { !"href" . . }*
-	    { "href" <.> }
-            { !"href" . . }* }
-  src <- { { !"src" . . }*
-	   { "src" <.> }
-           { !"src" . . }* }
+  tag <- {"a" <href> <html>} / {"img" <src> <html>} 
+         / {. . <html>} / .
+  href <- {{!"href" . .}* {"href" <.>}{!"href" . .}*}
+  src <- {{!"src" . .}* {"src" <.>} {!"src" . .}*}
 \end{verbatim}
 
 We run both benchmarks both with captures and semantic actions and for
