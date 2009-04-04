@@ -206,7 +206,7 @@ If $p_{1}$ and $p_{2}$ $\in$ Pattern then
 \end{table}
 %
 
-Rules $list.1$ and $list.2$ formlalize the notion that a list pattern $\{p\}$ only succeeds if the current element of the
+Rules $list.1$ and $list.2$ formalize the notion that a list pattern $\{p\}$ only succeeds if the current element of the
 subject is also a list and if $p$ matches this whole sublist from the first element. Thus the pattern $\{ \chmath{a} \chmath{b} \}$ matches
 the list $\{ \chmath{a} \chmath{b} \}$ but not the list $\{ \chmath{a} \chmath{b} \chmath{c} \}$, or the atom $\chmath{a}$.
 
@@ -502,7 +502,7 @@ this more efficient.
 
 The previous section showed how to compile list patterns to our parsing machine, and proved the
 correctness of this transformation. In several cases, though, we can make the resulting program more efficient,
-avoiding unecessary pushs and pops on the machine's stack. This section shows another way
+avoiding unnecessary pushes and pops on the machine's stack. This section shows another way
 of compiling some list patterns by using pattern identities and a few extra machine instructions, generating
 more efficient programs.
 
@@ -571,7 +571,7 @@ Finally, there is an interesting optimization derived from an identity between p
 of writing a choice between two list patterns is $\{p_1\} / \{p_2\}$. This compiles to a \texttt{Choice} followed by
 an \texttt{Open} instruction, followed by the compilation of $p_1$ and a \texttt{Close}, then a \texttt{Commit}, another
 \texttt{Open}, the compilation of $p_2$, and a final \texttt{Close} instruction. But when $p_1$ fails we end up trying
-to match $p_2$ against the same subject, and we have an unecessary stack pop and push (plus unecessary changes of the
+to match $p_2$ against the same subject, and we have an unnecessary stack pop and push (plus unnecessary changes of the
 current subject, which can have implementation costs). The naive optimization is to transform this pattern to
 $\{ p_1 / p_2 \}$, but now if $p_1$ is a partial match and $p_2$ is a full match the new pattern will fail where
 the previous one would succeed. We can correct this by transforming the original pattern to $\{ p_1 !. / p_2 \}$.
@@ -600,7 +600,7 @@ We have implemented these optimizations on LPEG, and evaluated their effectivene
 results are summarized on Figure~\ref{fig:microbench}. The graph shows the running time of the benchmarks for
 the base LPEG, LPEG with the string optimization, and LPEG with the string and list choice optimization. 
 The benchmarks are on the vertical axis: the \emph{string} benchmark uses a concatenation of string-like
-patterns (150,000 iterations), the \emph{headfail} benchmark uses an ordered choice of these patterns (15,000 iterations), and the \emph{choice} benchmark uses an ordered choice of lists of string-like patterns (40,000 iterations). The benchmarks with ordered choice use subjects that match each alternative of the choice.
+patterns (150,000 iterations), the \emph{head-fail} benchmark uses an ordered choice of these patterns (15,000 iterations), and the \emph{choice} benchmark uses an ordered choice of lists of string-like patterns (40,000 iterations). The benchmarks with ordered choice use subjects that match each alternative of the choice.
 
 % TODO: add graph here
 
@@ -755,7 +755,7 @@ Now, a backtrack entry keeps also a list of captures.
 
 The new instructions of the parsing machine are:
 \texttt{ConstCap}, which pushes a constant capture on the list of captures;
-\texttt{SimpCap}, which pusches a simple capture;
+\texttt{SimpCap}, which pushes a simple capture;
 \texttt{FuncCap}, which pushes a function capture;
 \texttt{FoldCap}, which pushes a fold capture;
 and \texttt{CloseCap}, which pushes an entry indicating the end of a capture;
@@ -889,7 +889,7 @@ the definition of our virtual parsing machine for PEGs, and we have proved the t
 from extended PEG patterns to programs in our parsing machine is correct.
 
 We also added new list-specific instructions to the parsing machine, in order to improve its
-performance when dealing with lists, and showed how the perfomance of the machine was affected
+performance when dealing with lists, and showed how the performance of the machine was affected
 by these instructions.
 
 To perform semantic actions, we extended the semantics of the $\mathrm{match}_L$ relation, adding
