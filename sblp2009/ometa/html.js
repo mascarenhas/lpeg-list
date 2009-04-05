@@ -40,3 +40,22 @@ for(i = 0; i < 1000; i++)
 d2 = new Date()
 print((d2.getTime() - d1.getTime())/1000)
 
+ometa linkextract2 {
+  contents = [ tag* ],
+  tag =  [ #a href contents ] 
+       | [ #img src contents ]
+       | [ anything anything contents ] 
+       | anything,
+  href = [ ([(~('href') anything) anything ])*
+           [ 'href' anything ] ]
+           ([(~('href') anything) anything ])*,
+  src = [ [(~#src anything) anything ]*
+	  [ #src anything ]
+          [(~#src anything) anything ]* ]
+}
+
+d1 = new Date()
+for(i = 0; i < 1000; i++)
+  linkextract2.matchAll([tree], 'contents');
+d2 = new Date()
+print((d2.getTime() - d1.getTime())/1000)
