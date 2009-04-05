@@ -137,11 +137,13 @@ and give proofs for the correctness of the translation of our new
 constructions.
 
 Extending PEGs to match structured data make PEGs useful for a larger
-part of the compilation/interpretation pipeline. A PEG-based
+part of the compilation pipeline. A PEG-based
 scannerless parser can construct an abstract syntax tree, and
 PEG-based tree walkers and transformers can implement analysis and
-optimization passes on this tree, then either compiling it to a target
-language or evaluating it. Using the same abstraction (PEGs) for the
+optimization passes on this tree, then either compiling it to
+a target language (either an intermediate language close to machine
+code or a naive translation to machine code).
+Using the same abstraction (PEGs) for the
 whole pipeline of simple domain-specific languages can make them
 easier for programmers to design and implement.
 
@@ -1052,8 +1054,14 @@ presence of captures and semantic actions. Our benchmarks also show an
 order-of-magnitude improvement over OMeta/JS, another PEG-based
 pattern matcher that operates over lists.
 
+LPEG has a richer set of capture patterns than we have presented here, such
+as position captures (useful for error reporting), argument captures 
+(useful for passing state to semantic actions), named
+captures, and the math-time captures mentioned in the previous section. 
+A formal treatment of these extra capture
+patterns is straightforward and will be included in a future work.
+
 \bibliographystyle{sbc}
 \bibliography{sblp} 
-
 
 \end{document}
