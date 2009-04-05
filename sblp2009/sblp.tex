@@ -82,17 +82,14 @@
 \maketitle
 
 \begin{abstract}
-Parsing Expression Grammars (PEGs) are a recognition-based foundation
-for describing syntax that renewed interest in top-down parsing
-approaches. We extend the definition of PEGs to support the matching
-of structured data in the form of lists, with a corresponding operational semantics.
-We also extend a virtual parsing machine from a previous work where
-each PEG can be transformed to a program for this machine, and extend the
-previous correctness proofs of this transformation for the new list patterns, along
-with possible optimizations. We also present an approach for formally adding 
-semantic actions to PEGs and their parsing machine programs. Benchmarks validate
-the effectiveness of our optimizations and the efficiency of our approach compared
-to other PEG-based tool.
+Parsing Expression Grammars (PEGs) are formalism for language recognition
+that renewed interest in top-down parsing
+approaches. We extend the PEG formalism with an operational semantics for pattern matching
+on list-structured data. We also present a virtual parsing machine that can
+efficiently execute PEGs compiled to machine instructions, and a proof of
+the soundness of the machine's soundness. Finally, we also introduce a formalization
+of captures and semantic actions for PEGs, and present benchmarks of
+our implementatin of the parsing machine.
 \end{abstract}
 
 %\keywords{parsing machine, Parsing Expression Grammars, pattern matching, virtual machines}
@@ -970,6 +967,7 @@ of scale, running times were 8.3, 8.65, 1.78, and 2.06 seconds, respecively.
 \includegraphics[width=0.49\textwidth]{bench.pdf}
 \end{center}
 \caption{Benchmark results}
+\label{fig:microbench}
 \end{figure}
 
 \section{Related Work}
