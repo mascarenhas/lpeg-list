@@ -244,12 +244,12 @@ assert(tree)
 print("+")
 
 tinyhtmld = re.compile([[
-  html <- { <~ <tag>* ~> } -> concat
-  tag <- { <~ <.>, . -> formatattrs, <html> ~> } -> ptag / <.>
+  html <- { <tag>* } -> {} -> concat   
+  tag <- {  <.>, . -> formatattrs, <html> } -> ptag / <.>
 ]], { concat = table.concat, 
-      ptag = function(tag)
-	       return  string.format("<%s %s>%s</%s>", tag[1], 
-				     tag[2], tag[3], tag[1])
+      ptag = function(tag, attrs, body)
+	       return  string.format("<%s %s>%s</%s>", tag, 
+				     attrs, body, tag)
 	     end,
       formatattrs = function(attrs) 
 		       local t = {}
@@ -305,7 +305,7 @@ assert(linkextract:match{tree}[2] == "http://twistedmatrix.com")
 print("+")
 
 boringfier = re.compile([[
-  contents <- { <~ <tag>* ~> }
+  contents <- { <tag>* } -> {}
   tag <-  { "b", ., <contents> } -> unpack
           / { "i", ., <contents> } -> unpack
           / { .:n, .:a, <contents>:c } -> {n, a, c} 
@@ -407,7 +407,7 @@ assert(not pcall(p.match, p, {{ "foo", "bar", "one", "two", "three", "baz", "boo
 
 print("+")
 
-p = re.compile([[ { "foo", <~ "bar", (!"baz" .)*, {'baz' -> upper} -> id, "boo", "biz" ~>, "zoo" } ]],
+p = re.compile([[ { "foo", <~ "bar", (!"baz" .)*, "baz" -> upper, "boo", "biz" ~>, "zoo" } ]],
 	       { upper = string.upper, id = function (x) return x end })
 
 
