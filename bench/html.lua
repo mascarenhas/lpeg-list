@@ -183,33 +183,33 @@ local linkextract_matchonly = re.compile([[
 local function linkextract2_matchonly(tree)
    for _, tag in ipairs(tree) do
       if #tag == 3 and tag[1] == "a" then
-	 local href
-	 for _, attr in ipairs(tag[2]) do
-	    if #attr == 2 and attr[1] == "href" then
-	       if href then
-		  return false
-	       end
-	       href = true
-	    elseif #attr ~= 2 then
-	       return false
-	    end
-	 end
-	 return linkextract2_matchonly(tag[3])
+	      local href
+	      for _, attr in ipairs(tag[2]) do
+	        if #attr == 2 and attr[1] == "href" then
+	          if href then
+		          break
+	          end
+	          href = true
+	        elseif #attr ~= 2 then
+	          break
+	        end
+	      end
+	      linkextract2_matchonly(tag[3])
       elseif #tag == 3 and tag[1] == "img" then
-	 local src
-	 for _, attr in ipairs(tag[2]) do
-	    if #attr == 2 and attr[1] == "src" then
-	       if src then
-		  return false
-	       end
-	       src = true
-	    elseif #attr ~= 2 then
-	       return false
-	    end
-	 end
-	 return linkextract2_matchonly(tag[3])
+	      local src
+	      for _, attr in ipairs(tag[2]) do
+	        if #attr == 2 and attr[1] == "src" then
+	          if src then
+		          break
+	          end
+	          src = true
+	        elseif #attr ~= 2 then
+	          break
+	        end
+	      end
+	      linkextract2_matchonly(tag[3])
       elseif #tag == 3 and tag[3] then
-	 return linkextract2_matchonly(tag[3])
+	      linkextract2_matchonly(tag[3])
       end
    end
    return true
