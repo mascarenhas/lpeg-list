@@ -225,5 +225,5 @@ end
 test3()
 test4()
 
-return test, test2
+return test, test2, test3, test4
 
