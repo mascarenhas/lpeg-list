@@ -16,8 +16,19 @@ tree = tinyhtml.matchAll("<html><title>Yes</title><body><h1>Man, HTML is
 otherwise?</p><img src='HIPPO.JPG'></img><a 
 href='http://twistedmatrix.com'>A Good Website</a></body></html>", 'html')
 
+function flatten(anArray) {
+  var res = [];
+  for(var i = 0; i < anArray.length; i++) {
+    if(anArray[i].constructor == Array)
+      res = res.concat(flatten(anArray[i]));
+    else
+      res.push(anArray[i]);
+  }
+  return res
+}
+
 ometa linkextract {
-  contents = [ tag*:t ] -> t.flatten(),
+  contents = [ tag*:t ] -> flatten(t),
   tag =  [ #a href:h contents:t ] -> [ h ].concat(t)
        | [ #img src:s contents:t ] -> [ s ].concat(t)
        | [ :name :attrs contents:t ] -> t 
