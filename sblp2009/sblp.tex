@@ -99,92 +99,135 @@ to other PEG-based tool.
 
 \section{Introduction}
 
-Parsing Expression Grammars (PEGs)~\cite{ford:peg} are a formalism for language recognition
- which renewed interest in top-down parsing approaches. The PEG formalism gives a convenient
-syntax for describing top-down parsers for unambiguous languages. The core of the formalism
-is a form of limited backtracking via \emph{ordered choice}. The limited backtracking gives
-PEGs the property of composability, meaning that a PEG can be used by another PEG just by making
-sure the names of their productions do not clash. This also lets PEG implementations integrate
-cleanly with hand-written parsers. These properties make PEGs very attractive for building
-dynamically-extensible parsers.
+Parsing Expression Grammars (PEGs)~\cite{ford:peg} are a formalism for
+language recognition which renewed interest in top-down parsing
+approaches. The PEG formalism gives a convenient syntax for describing
+top-down parsers for unambiguous languages. The core of the formalism
+is a form of limited backtracking via \emph{ordered choice}. The
+limited backtracking gives PEGs the property of composability, meaning
+that a PEG can be used by another PEG just by making sure the names of
+their productions do not clash. This also lets PEG implementations
+integrate cleanly with hand-written parsers. These properties make
+PEGs very attractive for building dynamically-extensible parsers.
 
-LPEG~\cite{roberto:lpeg} is a pattern-matching tool for the Lua language ~\cite{pil2} that uses
-PEGs to describe patterns instead of the more popular Perl-like ``regular expressions" (regexes). 
-The implementation of LPEG uses a \emph{virtual parsing machine},
-where each pattern translates to a program for this machine~\cite{dls:lpeg}. LPEG builds these
-programs at runtime, dynamically composing smaller programs into bigger programs, thus taking
-advantage of the composability of PEGs. PEGs limited backtracking is also reflected on this
-parsing machine through its use of a stack to manage backtrack information.
+LPEG~\cite{roberto:lpeg} is a pattern-matching tool for the Lua
+language ~\cite{pil2} that uses PEGs to describe patterns instead of
+the more popular Perl-like ``regular expressions" (regexes).  The
+implementation of LPEG uses a \emph{virtual parsing machine}, where
+each pattern translates to a program for this
+machine~\cite{dls:lpeg}. LPEG builds these programs at runtime,
+dynamically composing smaller programs into bigger programs, thus
+taking advantage of the composability of PEGs. PEGs limited
+backtracking is also reflected on this parsing machine through its use
+of a stack to manage backtrack information.
 
-This paper is a continuation of a previous work~\cite{dls:lpeg} where we 
-presented an alternative operational semantic for PEGs (based on natural semantics), and
-a formal specification of the parsing machine, along with a  correctness proof for our
-transformation of PEGs to programs of the machine.
+This paper is a continuation of a previous work~\cite{dls:lpeg} where
+we presented an alternative operational semantic for PEGs (based on
+natural semantics), and a formal specification of the parsing machine,
+along with a correctness proof for our transformation of PEGs to
+programs of the machine.
 
-Both the original PEG formalism and our previous parsing machine assume that the subject
-a PEG recognizes is a string of characters. In this paper, we extend both formalisms to
-parse structured data in the form of Lisp-style lists (a possibly empty list where each element 
-can be an atom or another list). We show that our previous results hold when matching lists
-or slices of lists that are isomorphic to strings, and give proofs for the correctness of the
-translation of our new constructions.
+Both the original PEG formalism and our previous parsing machine
+assume that the subject a PEG recognizes is a string of characters. In
+this paper, we extend both formalisms to parse structured data in the
+form of Lisp-style lists (a possibly empty list where each element can
+be an atom or another list). We show that our previous results hold
+when matching lists or slices of lists that are isomorphic to strings,
+and give proofs for the correctness of the translation of our new
+constructions.
 
-Extending PEGs to match structured data make PEGs useful for a larger part of the compilation/interpretation
-pipeline. A PEG-based scannerless parser can construct an abstract syntax tree, and PEG-based tree
-walkers and transformers can implement analysis and optimization passes on this tree, then either compiling
-it to a target language or evaluating it. Using the same abstraction (PEGs) for the whole pipeline of simple
-domain-specific languages can make them easier for programmers to design and implement.
+Extending PEGs to match structured data make PEGs useful for a larger
+part of the compilation/interpretation pipeline. A PEG-based
+scannerless parser can construct an abstract syntax tree, and
+PEG-based tree walkers and transformers can implement analysis and
+optimization passes on this tree, then either compiling it to a target
+language or evaluating it. Using the same abstraction (PEGs) for the
+whole pipeline of simple domain-specific languages can make them
+easier for programmers to design and implement.
 
-Adding a few extra instructions to the parsing machine enables transformation of certain
-pattern classes to more efficient programs, and we also present these optimizations. We
-restrict ourselves to optimizations on list patterns, as our previous work has covered more general
-parsing machine optimizations. For each optimization, we present a proof of its correctness and a benchmark
-showing how effective it is.
+Adding a few extra instructions to the parsing machine enables
+transformation of certain pattern classes to more efficient programs,
+and we also present these optimizations. We restrict ourselves to
+optimizations on list patterns, as our previous work has covered more
+general parsing machine optimizations. For each optimization, we
+present a proof of its correctness and a benchmark showing how
+effective it is.
 
-We also present an extension to the PEG formalism to include a mix of standard pattern matchers' captures and parser generators' semantic actions, by which we can extract useful information from structured data, instead of just knowing if it fits a pattern.
-We do this lazily, with the match just collecting enough information to extract captures and execute actions later (in a typical implementation, right after the match finishes). This means that semantic actions are free to have side-effects even in the presence of backtracking.
+We also present an extension to the PEG formalism to include a mix of
+standard pattern matchers' captures and parser generators' semantic
+actions, by which we can extract useful information from structured
+data, instead of just knowing if it fits a pattern.  We do this
+lazily, with the match just collecting enough information to extract
+captures and execute actions later (in a typical implementation, right
+after the match finishes). This means that semantic actions are free
+to have side-effects even in the presence of backtracking.
 
-Finally, we review related work on parsing structured data and on semantic actions for PEGs. We also present another set
-of benchmarks comparing our extended LPEG with a PEG-based tool of similar power, showing an order-of-magnitude
-improvement.
+Finally, we review related work on parsing structured data and on
+semantic actions for PEGs. We also present another set of benchmarks
+comparing our extended LPEG with a PEG-based tool of similar power,
+showing an order-of-magnitude improvement.
 
-The rest of this paper is organized as follows: Section~\ref{sec:lists} extends
-PEGs with list patterns; Section~\ref{sec:machine} describes the virtual parsing machine;
-proves the transformation between PEGs and their
-corresponding programs for the machine is correct; Section~\ref{sec:optimizations}
+The rest of this paper is organized as follows:
+Section~\ref{sec:lists} extends PEGs with list patterns;
+Section~\ref{sec:machine} describes the virtual parsing machine;
+proves the transformation between PEGs and their corresponding
+programs for the machine is correct; Section~\ref{sec:optimizations}
 describes optimizations for list patterns in our machine;
-Section~\ref{sec:captures} extends PEGs with lazy semantic actions and shows how to execute them;
-Section~\ref{sec:related} reviews some related work; finally,
-Section~\ref{sec:conclusions} summarizes our results.
+Section~\ref{sec:captures} extends PEGs with lazy semantic actions and
+shows how to execute them; Section~\ref{sec:related} reviews some
+related work; finally, Section~\ref{sec:conclusions} summarizes our
+results.
 
 \section{Extending PEGs for Lists}
 \label{sec:lists}
 
-In~\cite{dls:lpeg}, we described a \texttt{match} relation for PEGs, 
-where we defined the relation \texttt{match} on
-$\mathrm{Grammar} \times \mathrm{Pattern} \times \Sigma^{*} \times \mathcal{N} \times (\mathcal{N} \cup \{\Nothing\})$.
-Given a grammar (a map from variables to patterns), a pattern, a subject string, and a position (the subject starts at position $1$),
-the relation gives us either the position after the match (possibly the length of the subject plus $1$) or \Nothing, depending on
-whether the pattern matches the subject or not. We use 
-$\Matchf{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in \texttt{match}$.
+In~\cite{dls:lpeg}, we described a \texttt{match} relation for PEGs,
+where we defined the relation \texttt{match} on $\mathrm{Grammar}
+\times \mathrm{Pattern} \times \Sigma^{*} \times \mathcal{N} \times
+(\mathcal{N} \cup \{\Nothing\})$.  Given a grammar (a map from
+variables to patterns), a pattern, a subject string, and a position
+(the subject starts at position $1$), the relation gives us either the
+position after the match (possibly the length of the subject plus $1$)
+or \Nothing, depending on whether the pattern matches the subject or
+not. We use $\Matchf{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p,
+s, i, j) \in \texttt{match}$.
 
-In this paper, we are considering lists to be Lisp-style lists, made up from atoms and other lists. We will restrict ourselves
-to only characters as atoms. We represent the empty list as \Emptyl. Lists are inductively defined by the operator \emph{:}
-(also known as cons). If $c$ is an atom and $l$ is a list then $c:l$ is a list, and if $l_1$ and $l_2$ are lists then $l_1:l_2$ is
-a list. The first argument of $:$ is the head of the list and the second is the tail. We will use $\{ e_1 e_2 \ldots e_n \}$ as
-another way to write $e_1:e_2:\ldots :e_n:\Emptyl$.
+In this paper, we are considering lists to be Lisp-style lists, made
+up from atoms and other lists. We will restrict ourselves to only
+characters as atoms. We represent the empty list as \Emptyl. Lists are
+inductively defined by the operator \emph{:} (also known as cons). If
+$c$ is an atom and $l$ is a list then $c:l$ is a list, and if $l_1$
+and $l_2$ are lists then $l_1:l_2$ is a list. The first argument of
+$:$ is the head of the list and the second is the tail. We will use
+$\{ e_1 e_2 \ldots e_n \}$ as another way to write $e_1:e_2:\ldots
+:e_n:\Emptyl$.
 
-We will use $|l|$ to represent the number of elements of list $l$, and its inductive definition is trivial. We will use $l[i]$ to
-denote the $i^{th}$ element of the list, starting from $1$, which also has a straightforward inductive definition. List concatenation
-is represented by juxtaposition ($l_1l_2$ is the list with all elements of $l_1$ followed by all elements from $l_2$, not to be
-confused with $l_1:l_2$, which is a list with $l_1$ as the first element followed by the elements of $l_2$).
+We will use $|l|$ to represent the number of elements of list $l$, and
+its inductive definition is trivial. We will use $l[i]$ to denote the
+$i^{th}$ element of the list, starting from $1$, which also has a
+straightforward inductive definition. List concatenation is
+represented by juxtaposition ($l_1l_2$ is the list with all elements
+of $l_1$ followed by all elements from $l_2$, not to be confused with
+$l_1:l_2$, which is a list with $l_1$ as the first element followed by
+the elements of $l_2$).
 
 Now we can define a new relation $\texttt{match}_L$ on
-$\mathrm{Grammar} \times \mathrm{Pattern} \times \mathrm{List} \times \mathcal{N} \times (\mathcal{N} \cup \{\Nothing\})$.
-This relation gives us the position in the list after trying to match a pattern given a starting position and a grammar, or
-\Nothing if the list does not match the pattern. As with \texttt{match}, we also have a notation
-$\Matchl{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in \texttt{match}_L$.
+$\mathrm{Grammar} \times \mathrm{Pattern} \times \mathrm{List} \times
+\mathcal{N} \times (\mathcal{N} \cup \{\Nothing\})$.  This relation
+gives us the position in the list after trying to match a pattern
+given a starting position and a grammar, or \Nothing if the list does
+not match the pattern. As with \texttt{match}, we also have a notation
+$\Matchl{G}{p}{s}{i} \leadsto j$ to indicate that $(G, p, s, i, j) \in
+\texttt{match}_L$.
 
-Table~\ref{tab:patterns} presents the abstract syntax of PEG patterns with the new \emph{list pattern} $\{p\}$, and Figure~\ref{fig:semgr} presents an operational semantics of $\texttt{match}_L$ given as rules on the pattern structure. Except for rules $list.1$ and $list.2$, all semantic rules of $\texttt{match}_L$ are taken straight from \texttt{match}. We have that $\Matchl{G}{p}{s}{i} \leadsto j$ if we can use the rules to  build a finite derivation tree for this proposition.
+Table~\ref{tab:patterns} presents the abstract syntax of PEG patterns
+with the new \emph{list pattern} $\{p\}$, and Figure~\ref{fig:semgr}
+presents an operational semantics of $\texttt{match}_L$ given as rules
+on the pattern structure. Except for rules $list.1$ and $list.2$, all
+semantic rules of $\texttt{match}_L$ are taken straight from
+\texttt{match}. We have that $\Matchl{G}{p}{s}{i} \leadsto j$ if we
+can use the rules to build a finite derivation tree for this
+proposition.
 
 %
 \begin{table}
@@ -203,19 +246,28 @@ If $p_{1}$ and $p_{2}$ $\in$ Pattern then
 \end{table}
 %
 
-Rules $list.1$ and $list.2$ formalize the notion that a list pattern $\{p\}$ only succeeds if the current element of the
-subject is also a list and if $p$ matches this whole sublist from the first element. Thus the pattern $\{ \chmath{a} \chmath{b} \}$ matches
-the list $\{ \chmath{a} \chmath{b} \}$ but not the list $\{ \chmath{a} \chmath{b} \chmath{c} \}$, or the atom $\chmath{a}$.
+Rules $list.1$ and $list.2$ formalize the notion that a list pattern
+$\{p\}$ only succeeds if the current element of the subject is also a
+list and if $p$ matches this whole sublist from the first
+element. Thus the pattern $\{ \chmath{a} \chmath{b} \}$ matches the
+list $\{ \chmath{a} \chmath{b} \}$ but not the list $\{ \chmath{a}
+\chmath{b} \chmath{c} \}$, or the atom $\chmath{a}$.
 
-The set of character strings is isomorphic to the set of lists where all elements are characters plus the empty list. Lets define
-$\Mapl$ as the natural mapping from strings to lists, that is, the empty string maps to the empty list, and a string
-$\chmath{c_1} \ldots \chmath{c_n} $ maps to $\{ \chmath{c_1} \ldots \chmath{c_n} \}$. In other words, if $s$ is a string,
-$|s| = |\Mapl(s)|$ and $s[i] = \Mapl(s)[i]$ for $1 \leq i \leq |s|$. We then have
+The set of character strings is isomorphic to the set of lists where
+all elements are characters plus the empty list. Lets define $\Mapl$
+as the natural mapping from strings to lists, that is, the empty
+string maps to the empty list, and a string $\chmath{c_1} \ldots
+\chmath{c_n} $ maps to $\{ \chmath{c_1} \ldots \chmath{c_n} \}$. In
+other words, if $s$ is a string, $|s| = |\Mapl(s)|$ and $s[i] =
+\Mapl(s)[i]$ for $1 \leq i \leq |s|$. We then have
 \begin{equation*}
-\Matchf{G}{p}{s}{i} \leadsto j \;\;\mbox{iff}\;\; \Matchl{G}{p}{\Mapl(s)}{i} \leadsto j.
+\Matchf{G}{p}{s}{i} \leadsto j \;\;\mbox{iff}\;\;
+\Matchl{G}{p}{\Mapl(s)}{i} \leadsto j.
 \end{equation*}
-with a trivial inductive proof on the height of the derivation tree, given the semantic rules are identical. In other words,
-our extended semantics is identical to the regular PEG semantics when we are dealing with string-like lists as subjects.
+with a trivial inductive proof on the height of the derivation tree,
+given the semantic rules are identical. In other words, our extended
+semantics is identical to the regular PEG semantics when we are
+dealing with string-like lists as subjects.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Operational Semantics of PEG Patterns with Grammars and Lists %%%
@@ -297,40 +349,60 @@ our extended semantics is identical to the regular PEG semantics when we are dea
 \section{Parsing Machine}
 \label{sec:machine}
 
-In~\cite{dls:lpeg} we also presented the semantics for a parsing machine for PEGs, along with a transformation
-from PEG patterns to programs that this machine executes. The parsing machine is the core of LPEG, our implementation
-of PEGs, and is emphasizes implementation efficiency without sacrificing the expressive and parsing power of
+In~\cite{dls:lpeg} we also presented the semantics for a parsing
+machine for PEGs, along with a transformation from PEG patterns to
+programs that this machine executes. The parsing machine is the core
+of LPEG, our implementation of PEGs, and is emphasizes implementation
+efficiency without sacrificing the expressive and parsing power of
 PEGs.
 
-The machine has a program counter to address the next instruction to execute,
-a  register to hold the current position in the subject, and a stack that the machine uses for pushing
-call and backtrack frames. A call frame is just a return address for the program counter, and a backtrack frame is an
-address for the program counter and a position in the subject. The machine's instructions
-manipulate on the program counter, position register and the stack.
+The machine has a program counter to address the next instruction to
+execute, a register to hold the current position in the subject, and a
+stack that the machine uses for pushing call and backtrack frames. A
+call frame is just a return address for the program counter, and a
+backtrack frame is an address for the program counter and a position
+in the subject. The machine's instructions manipulate on the program
+counter, position register and the stack.
 
-To be able to translate list patterns to the parsing machine, we need to add another register to hold the current
-subject. We also need to be able to store \emph{list frames} in the stack, a list frame is a subject and a position. These
-two additions let we save the current subject and position in the stack before starting to process a sub-list that is an element
-of the current subject. We also need to add two new instructions:
+To be able to translate list patterns to the parsing machine, we need
+to add another register to hold the current subject. We also need to
+be able to store \emph{list frames} in the stack, a list frame is a
+subject and a position. These two additions let we save the current
+subject and position in the stack before starting to process a
+sub-list that is an element of the current subject. We also need to
+add two new instructions:
 
 \begin{description}
-\item[\texttt{Open}] pushes a list frame on the stack, then changes the subject to the element at the current position. The  current position becomes $1$, the start of the new subject. Fails if the element at the current position is not a list.
+\item[\texttt{Open}] pushes a list frame on the stack, then changes
+  the subject to the element at the current position. The current
+  position becomes $1$, the start of the new subject. Fails if the
+  element at the current position is not a list.
 
-\item[\texttt{Close}] if the current position points past the end of the subject, pops the top entry from the stack (which will be a
-list frame), setting the subject to the subject in the popped frame and the position to the position in the frame plus one. Fails if
-the current position is not pointing past the end of the subject.
+\item[\texttt{Close}] if the current position points past the end of
+  the subject, pops the top entry from the stack (which will be a list
+  frame), setting the subject to the subject in the popped frame and
+  the position to the position in the frame plus one. Fails if the
+  current position is not pointing past the end of the subject.
 \end{description}
 
-Formally, the program counter, the subject and position registers, and the stack form a machine state. We can represent
-it as a tuple $\mathcal{N} \times \mathrm{List} \times \mathcal{N} \times \mathrm{Stack}$, in the order above. A machine state can also be a failure state, represented by $\Sfail{e}$, where $e$ is the stack. Stacks are lists of
-$(\mathcal{N} \times \mathrm{List} \times \mathcal{N}) \cup (\mathrm{List} \times \mathcal{N})
-\cup \mathcal{N}$, where $\mathcal{N} \times \mathrm{List} \times \mathcal{N}$
-represents a backtrack frame, $\mathrm{List} \times \mathcal{N}$ represents
-a list frame, and $\mathcal{N}$ represents a call frame.
+Formally, the program counter, the subject and position registers, and
+the stack form a machine state. We can represent it as a tuple
+$\mathcal{N} \times \mathrm{List} \times \mathcal{N} \times
+\mathrm{Stack}$, in the order above. A machine state can also be a
+failure state, represented by $\Sfail{e}$, where $e$ is the
+stack. Stacks are lists of $(\mathcal{N} \times \mathrm{List} \times
+\mathcal{N}) \cup (\mathrm{List} \times \mathcal{N}) \cup
+\mathcal{N}$, where $\mathcal{N} \times \mathrm{List} \times
+\mathcal{N}$ represents a backtrack frame, $\mathrm{List} \times
+\mathcal{N}$ represents a list frame, and $\mathcal{N}$ represents a
+call frame.
 
-Figure~\ref{fig:semantics} presents the operational semantics of the parsing
-machine as a relation between machine states. The program $\mathcal{P}$ that the
-machine executes is implicit. The relation $\xrightarrow{\mathrm{Instruction}}$ relates two states when \emph{pc} in the first state addresses a instruction matching the label, and the guard (if present) is valid.
+Figure~\ref{fig:semantics} presents the operational semantics of the
+parsing machine as a relation between machine states. The program
+$\mathcal{P}$ that the machine executes is implicit. The relation
+$\xrightarrow{\mathrm{Instruction}}$ relates two states when \emph{pc}
+in the first state addresses a instruction matching the label, and the
+guard (if present) is valid.
 %
 \begin{figure*}
 {
@@ -481,18 +553,22 @@ this more efficient.
 \section{Optimizations}
 \label{sec:optimizations}
 
-The previous section showed how to compile list patterns to our parsing machine, and proved the
-correctness of this transformation. In several cases, though, we can make the resulting program more efficient,
-avoiding unnecessary pushes and pops on the machine's stack. This section shows another way
-of compiling some list patterns by using pattern identities and a few extra machine instructions, generating
-more efficient programs.
+The previous section showed how to compile list patterns to our
+parsing machine, and proved the correctness of this transformation. In
+several cases, though, we can make the resulting program more
+efficient, avoiding unnecessary pushes and pops on the machine's
+stack. This section shows another way of compiling some list patterns
+by using pattern identities and a few extra machine instructions,
+generating more efficient programs.
 
-Figure~\ref{fig:optimizations} lists the instructions we are adding to the machine and their
-semantics. Let's start with a very common pattern, $\{ \chmath{c_1} \ldots \chmath{c_n} \}$, that is, a pattern that
-matches a list of $n$ characters. The current program for this pattern is an \texttt{Open} instruction
-followed by a sequence of \texttt{Char} instructions and a \texttt{Close} instruction. We can
-compile this pattern to a single \texttt{String} instruction with the string ``$c_{1} \ldots c_{2}$'' as its 
-argument.
+Figure~\ref{fig:optimizations} lists the instructions we are adding to
+the machine and their semantics. Let's start with a very common
+pattern, $\{ \chmath{c_1} \ldots \chmath{c_n} \}$, that is, a pattern
+that matches a list of $n$ characters. The current program for this
+pattern is an \texttt{Open} instruction followed by a sequence of
+\texttt{Char} instructions and a \texttt{Close} instruction. We can
+compile this pattern to a single \texttt{String} instruction with the
+string ``$c_{1} \ldots c_{2}$'' as its argument.
 
 %
 \begin{figure*}
@@ -517,12 +593,16 @@ argument.
 \label{fig:optimizations}
 \end{figure*}
 
-Now that we have a single instruction that matches a whole list of characters (a list that is isomorphic to a string),
-we can do \emph{head-fail} optimizations on these tests by having a complementary \texttt{TestString} instruction
-that jumps to a label instead of failing if it does not match. This kind of failure is very common when we
-have a pattern like $\{ \chmath{c_1} \ldots \chmath{c_n} \} p_1 / p_2$, such as when matching against a tree that uses strings in the
-first element as tags. We can avoid pushing a backtrack entry that will be discarded most of the time
-when trying to match the tag. The compilation for the pattern above becomes
+Now that we have a single instruction that matches a whole list of
+characters (a list that is isomorphic to a string), we can do
+\emph{head-fail} optimizations on these tests by having a
+complementary \texttt{TestString} instruction that jumps to a label
+instead of failing if it does not match. This kind of failure is very
+common when we have a pattern like $\{ \chmath{c_1} \ldots
+\chmath{c_n} \} p_1 / p_2$, such as when matching against a tree that
+uses strings in the first element as tags. We can avoid pushing a
+backtrack entry that will be discarded most of the time when trying to
+match the tag. The compilation for the pattern above becomes
 \begin{equation*}
 \begin{split}
 \Pi(g,x, \{c_{1} \ldots c_{n} \} p_1 / p_{2}) \equiv \;
@@ -533,30 +613,40 @@ when trying to match the tag. The compilation for the pattern above becomes
 	&\Pi(g,x+|\Pi(g,x,p_1)|+3,p_{2})
 \end{split}
 \end{equation*}
-with the \texttt{Choice} instruction now taking an offset, which we subtract from the current position
-when pushing a new backtrack entry. An offset of zero is assumed if an offset is not provided.
+with the \texttt{Choice} instruction now taking an offset, which we
+subtract from the current position when pushing a new backtrack
+entry. An offset of zero is assumed if an offset is not provided.
 
-In case of an unsuccessful match of $\{\chmath{c_1} \ldots \chmath{c_n}\}$ and a successful
-match of $p_2$, we have
+In case of an unsuccessful match of $\{\chmath{c_1} \ldots
+\chmath{c_n}\}$ and a successful match of $p_2$, we have
 \begin{align*}
 \xrightarrow{TestString} &
 	{\Sstate{pc + |\Pi(g,x,p_{1})| + 3}{s}{i}{e}} \\
 \xrightarrow{\Pi(g,x+|\Pi(g,x,p_1)|+3,p_{2})} &
     {\Sstate{pc + |\Pi(g,x, \{\chmath{c_1} \dots \chmath{c_n} \} p_1 / p_2)|}{s}{i+k}{e}}
 \end{align*}
-as the sequence of transitions, which is correct by induction on the correctness of $p_{2}$'s compilation.
+as the sequence of transitions, which is correct by induction on the
+correctness of $p_{2}$'s compilation.
 
-Finally, there is an interesting optimization derived from an identity between patterns. The natural way
-of writing a choice between two list patterns is $\{p_1\} / \{p_2\}$. This compiles to a \texttt{Choice} followed by
-an \texttt{Open} instruction, followed by the compilation of $p_1$ and a \texttt{Close}, then a \texttt{Commit}, another
-\texttt{Open}, the compilation of $p_2$, and a final \texttt{Close} instruction. But when $p_1$ fails we end up trying
-to match $p_2$ against the same subject, and we have an unnecessary stack pop and push (plus unnecessary changes of the
-current subject, which can have implementation costs). The naive optimization is to transform this pattern to
-$\{ p_1 / p_2 \}$, but now if $p_1$ is a partial match and $p_2$ is a full match the new pattern will fail where
-the previous one would succeed. We can correct this by transforming the original pattern to $\{ p_1 !. / p_2 \}$.
+Finally, there is an interesting optimization derived from an identity
+between patterns. The natural way of writing a choice between two list
+patterns is $\{p_1\} / \{p_2\}$. This compiles to a \texttt{Choice}
+followed by an \texttt{Open} instruction, followed by the compilation
+of $p_1$ and a \texttt{Close}, then a \texttt{Commit}, another
+\texttt{Open}, the compilation of $p_2$, and a final \texttt{Close}
+instruction. But when $p_1$ fails we end up trying to match $p_2$
+against the same subject, and we have an unnecessary stack pop and
+push (plus unnecessary changes of the current subject, which can have
+implementation costs). The naive optimization is to transform this
+pattern to $\{ p_1 / p_2 \}$, but now if $p_1$ is a partial match and
+$p_2$ is a full match the new pattern will fail where the previous one
+would succeed. We can correct this by transforming the original
+pattern to $\{ p_1 !. / p_2 \}$.
 
-Now a partial match of $p_1$ will fail the antecedent of the choice, and if $p_2$ is a full match then the whole pattern succeeds,
-as in the original. By using the new \texttt{NotAny} instruction to compile $!.$, the new pattern compiles to
+Now a partial match of $p_1$ will fail the antecedent of the choice,
+and if $p_2$ is a full match then the whole pattern succeeds, as in
+the original. By using the new \texttt{NotAny} instruction to compile
+$!.$, the new pattern compiles to
 \begin{equation*}
 \begin{split}
 \Pi(g, x, \{ p_1 !. / p_2\}) \equiv \;
@@ -569,43 +659,46 @@ as in the original. By using the new \texttt{NotAny} instruction to compile $!.$
 	&{\tt Close} \; 
 \end{split}
 \end{equation*}
-avoiding the extra work of the original pattern, and incidentally opening the patterns to further head-fail optimization. 
-Full proofs of the identity, and the correctness of compiling $!.$ to \texttt{NotAny}, are straightforward inductions on
-derivation trees.
-
-We have implemented these optimizations on LPEG, and evaluated their effectiveness on a few simple benchmarks. The
-results are summarized on Figure~\ref{fig:microbench}. The graph shows the running time of the benchmarks for
-the base LPEG, LPEG with the string optimization, and LPEG with the string and list choice optimization. 
-The benchmarks are on the vertical axis: the \emph{string} benchmark uses a concatenation of string-like
-patterns (150,000 iterations), the \emph{head-fail} benchmark uses an ordered choice of these patterns (15,000 iterations), and the \emph{choice} benchmark uses an ordered choice of lists of string-like patterns (40,000 iterations). The benchmarks with ordered choice use subjects that match each alternative of the choice.
-
-\begin{figure}
-\begin{center}
-\includegraphics[width=0.6\textwidth]{microbench.pdf}
-\end{center}
-\caption{Benchmark results of list optimizations}
-\end{figure}
+avoiding the extra work of the original pattern, and incidentally
+opening the patterns to further head-fail optimization.  Full proofs
+of the identity, and the correctness of compiling $!.$ to
+\texttt{NotAny}, are straightforward inductions on derivation trees.
 
 \section{Captures}
 \label{sec:captures}
 
-Recognizing whether a subject fits a pattern is seldom what we just want from a pattern matcher; usually we also
-want to extract parts of the subject that fit parts of the pattern, or do some computation on these parts. If our subject
-is an abstract syntax tree for a programming language, for example, we may want to do a pattern-directed evaluation
-of this tree, or generate a new tree by transforming the old (converting to an intermediate representation closer to machine
-code, doing optimizations, or naively compiling to machine code, for example). Pattern matchers usually offer a way of
-extracting parts of the subject via \emph{captures}, while parser generators have \emph{semantic actions} executed when
-parsing each rule of a grammar. In this section we are going to combine both concepts and add them to our formalization of
-PEGs. The rest for the section refers to both captures and actions as just \emph{captures}.
+Recognizing whether a subject fits a pattern is seldom what we just
+want from a pattern matcher; usually we also want to extract parts of
+the subject that fit parts of the pattern, or do some computation on
+these parts. If our subject is an abstract syntax tree for a
+programming language, for example, we may want to do a
+pattern-directed evaluation of this tree, or generate a new tree by
+transforming the old (converting to an intermediate representation
+closer to machine code, doing optimizations, or naively compiling to
+machine code, for example). Pattern matchers usually offer a way of
+extracting parts of the subject via \emph{captures}, while parser
+generators have \emph{semantic actions} executed when parsing each
+rule of a grammar. In this section we are going to combine both
+concepts and add them to our formalization of PEGs. The rest for the
+section refers to both captures and actions as just \emph{captures}.
 
-We will define four kinds of captures: \emph{simple}, which just captures a slice of the current subject; \emph{constant},
-used to inject external values so other captures can use them; \emph{function}, a semantic action proper, which applies
-a given function to a list of captured values and passes the result to other captures; and \emph{fold}, which folds (or reduces)
-a list of captured values using a supplied binary function, passing the result to other captures.
+We will define four kinds of captures: \emph{simple}, which just
+captures a slice of the current subject; \emph{constant}, used to
+inject external values so other captures can use them;
+\emph{function}, a semantic action proper, which applies a given
+function to a list of captured values and passes the result to other
+captures; and \emph{fold}, which folds (or reduces) a list of captured
+values using a supplied binary function, passing the result to other
+captures.
 
-In the previous paragraph we say that captures can pass values to other captures, this is due to the nesting property of PEG patterns. A capture is a pattern, too, with the syntax in Table~\ref{tab:captures}, and, except for constant captures, all captures have nested
-patterns (Value $\equiv$ List $\cup$ Atom). Simple captures take the slice of the subject that their nested capture matches. Function and fold captures consume
-the values produced by their nested captures.
+In the previous paragraph we say that captures can pass values to
+other captures, this is due to the nesting property of PEG patterns. A
+capture is a pattern, too, with the syntax in
+Table~\ref{tab:captures}, and, except for constant captures, all
+captures have nested patterns (Value $\equiv$ List $\cup$
+Atom). Simple captures take the slice of the subject that their nested
+capture matches. Function and fold captures consume the values
+produced by their nested captures.
 %
 \begin{table}
 \centering
@@ -619,17 +712,31 @@ If $p$ $\in$ Pattern and $f$ $\in$ Value $\times$ Value $\rightarrow$ Value then
 \label{tab:captures}
 \end{table}
 %
-An important characteristic of our specification of captures is that no values are extracted and no functions applied when
-trying to match patterns; matching capture patterns just pushes information about these captures in a \emph{list of captures}, such as the current subject and position, the function that we have to apply, etc. To get the values and execute the semantic actions
-we need to evaluate this list after a successful match. This means that the functions used in function and fold captures can
-have side-effects in languages that have them without causing problems with the backtracking. Furthermore, we will specify 
-captures in our parsing machine in a way that if $p$ matches and yields a list of captures $c$ then compiling $p$ and executing
-it on the parsing machine will yield the same list of captures, so we will have a single evaluation function for both patterns and programs.
+An important characteristic of our specification of captures is that
+no values are extracted and no functions applied when trying to match
+patterns; matching capture patterns just pushes information about
+these captures in a \emph{list of captures}, such as the current
+subject and position, the function that we have to apply, etc. To get
+the values and execute the semantic actions we need to evaluate this
+list after a successful match. This means that the functions used in
+function and fold captures can have side-effects in languages that
+have them without causing problems with the backtracking. Furthermore,
+we will specify captures in our parsing machine in a way that if $p$
+matches and yields a list of captures $c$ then compiling $p$ and
+executing it on the parsing machine will yield the same list of
+captures, so we will have a single evaluation function for both
+patterns and programs.
 
-Formally, we have to extend our $\texttt{match}_L$ relation, which now becomes:
-$\mathrm{Grammar} \times \mathrm{Pattern} \times \mathrm{List} \times \mathcal{N} \times ((\mathcal{N}, Capture^*) \cup \{\Nothing\})$, where $Capture^*$ is a list of captures. Naturally, the notation
-$\Matchl{G}{p}{s}{i} \leadsto (j,c)$ means $(G, p, s, i, (j, c)) \in \texttt{match}_L$.  Figure~\ref{fig:captures} presents the operational semantics of $\texttt{match}_L$ with captures. We elided the cases where the new rule is just the old one with a list of captures
-added to the result of the match, as well as the cases where a pattern fails and the list of captures is discarded.
+Formally, we have to extend our $\texttt{match}_L$ relation, which now
+becomes: $\mathrm{Grammar} \times \mathrm{Pattern} \times
+\mathrm{List} \times \mathcal{N} \times ((\mathcal{N}, Capture^*) \cup
+\{\Nothing\})$, where $Capture^*$ is a list of captures. Naturally,
+the notation $\Matchl{G}{p}{s}{i} \leadsto (j,c)$ means $(G, p, s, i,
+(j, c)) \in \texttt{match}_L$.  Figure~\ref{fig:captures} presents the
+operational semantics of $\texttt{match}_L$ with captures. We elided
+the cases where the new rule is just the old one with a list of
+captures added to the result of the match, as well as the cases where
+a pattern fails and the list of captures is discarded.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Operational Semantics of PEG with Captures %%%
@@ -683,8 +790,12 @@ added to the result of the match, as well as the cases where a pattern fails and
 }
 \end{figure*}
 
-We also have to extend the definition of our parsing machine (Figure~\ref{fig:semcaptures}, adding the list of captures to its non-failure states ($k$ in the figure). Backtrack frames also need to keep the current list of captures along with subject and position.
-We also add five new instructions to the machine, to add the correct capture tuples in the list of captures.
+We also have to extend the definition of our parsing machine
+(Figure~\ref{fig:semcaptures}, adding the list of captures to its
+non-failure states ($k$ in the figure). Backtrack frames also need to
+keep the current list of captures along with subject and position.  We
+also add five new instructions to the machine, to add the correct
+capture tuples in the list of captures.
 
 \begin{figure*}
 {
@@ -712,7 +823,8 @@ We also add five new instructions to the machine, to add the correct capture tup
 \label{fig:semcaptures}
 \end{figure*}
 
-Compiling capture patterns is straightforward. Pattern $\Pcap{const}{v}$ compiles to just ${\tt ConstCap} \; v$. Pattern
+Compiling capture patterns is straightforward. Pattern
+$\Pcap{const}{v}$ compiles to just ${\tt ConstCap} \; v$. Pattern
 $\Pcap{simp}{p}$ compiles to
 \begin{equation*}
 \begin{split}
@@ -722,13 +834,17 @@ $\Pcap{simp}{p}$ compiles to
 	&{\tt CloseCap}  \\
 \end{split}
 \end{equation*}
-with analogous compilation for function and fold captures, replacing \texttt{SimpCap} with ${\tt FuncCap} \; f$ or
-${\tt FoldCap} \; f$, respectively.
+with analogous compilation for function and fold captures, replacing
+\texttt{SimpCap} with ${\tt FuncCap} \; f$ or ${\tt FoldCap} \; f$,
+respectively.
 
 Proving that if $\Matchl{G}{p}{s}{i} \leadsto (i+j,c)$ then
-$\Sstatec{pc}{s}{i}{e}{k} \xrightarrow{\Pi(g,x,p)} \Sstatec{pc+|\Pi(g,x,p)|}{s}{i+j}{e}{kc}$ is also an induction on derivation trees. We will
-show the case where $\Matchl{G}{\Pcap{simp}{p}}{s}{i} \leadsto \Justc{i+j}{(\Pcapp{simp}{s}{i}):c \Concatl \{\Pcap{close}{i+j}\}}$. The
-corresponding machine transitions are
+$\Sstatec{pc}{s}{i}{e}{k} \xrightarrow{\Pi(g,x,p)}
+\Sstatec{pc+|\Pi(g,x,p)|}{s}{i+j}{e}{kc}$ is also an induction on
+derivation trees. We will show the case where
+$\Matchl{G}{\Pcap{simp}{p}}{s}{i} \leadsto
+\Justc{i+j}{(\Pcapp{simp}{s}{i}):c \Concatl
+  \{\Pcap{close}{i+j}\}}$. The corresponding machine transitions are
 \begin{align*}
 \xrightarrow{SimpCap} &
 	{\Sstatec{pc + 1}{s}{i}{e}{k \Concatl \{\Pcapp{simp}{s}{i}\}}} \\
@@ -737,12 +853,22 @@ corresponding machine transitions are
 \xrightarrow{CloseCap} &
     {\Sstatec{pc + |\Pi(g,x, p)| + 2}{s}{i+j}{e}{k \Concatl (\Pcapp{simp}{s}{i}):c \Concatl \{\Pcap{close}{i+j}\}}}
 \end{align*}
-with the second transition using our induction hypotesis.
+with the second transition using our induction hypothesis.
 
-Now we will define an $eval: Capture^* \times List \rightarrow Capture^* \times List$ function that yields a list of values when applied to a list of captures and an initial list of values (usually empty). Figure~\ref{fig:eval} is an inductive definition of eval, using convenience functions (also inductively defined) for simple, function, and fold captures. The notation $s[i,j]$ takes a slice of the list $s$ from position $i$ to position $j$ (including element $i$ but not element $j$). Function $fold: (Value \times Value \rightarrow Value) \times List \rightarrow Value$ is the common left fold function.
+Now we will define an $eval: Capture^* \times List \rightarrow
+Capture^* \times List$ function that yields a list of values when
+applied to a list of captures and an initial list of values (usually
+empty). Figure~\ref{fig:eval} is an inductive definition of eval,
+using convenience functions (also inductively defined) for simple,
+function, and fold captures. The notation $s[i,j]$ takes a slice of
+the list $s$ from position $i$ to position $j$ (including element $i$
+but not element $j$). Function $fold: (Value \times Value \rightarrow
+Value) \times List \rightarrow Value$ is the common left fold
+function.
 
-After applying \texttt{eval} to the list of captures constructed by $\mathrm{match}_L$ (or our machine) and an empty list of values,
-the result is an empty list of captures and a list of captured values.
+After applying \texttt{eval} to the list of captures constructed by
+$\mathrm{match}_L$ (or our machine) and an empty list of values, the
+result is an empty list of captures and a list of captured values.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Operational Semantics of eval %%%%
@@ -778,57 +904,151 @@ the result is an empty list of captures and a list of captured values.
 \label{fig:eval}
 \end{figure*}
 
+\section{Performance}
+\label{sec:benchmarks}
+
+In this section we present some performance numbers of our extension
+to LPEG, an implementation of our parsing machine as a library for the
+Lua programming language.
+
+First we will evaluate the optimizations of
+Section~\ref{sec:optimizations} with a few simple benchmarks. The
+results are summarized on Figure~\ref{fig:microbench}, a graph showing
+the running time of the benchmarks for the base LPEG, LPEG with the
+string optimization, and LPEG with the string and list choice
+optimization.
+
+The benchmarks are on the vertical axis: \emph{string} uses a
+concatenation of string-like patterns (150,000 iterations),
+\emph{head-fail} uses an ordered choice of these patterns (15,000
+iterations), and \emph{choice} uses an ordered choice of lists of
+string-like patterns (40,000 iterations). The benchmarks with ordered
+choice use subjects that match each alternative of the choice. The
+graph shows a moderate improvement on running times when the
+optimizations are used (close to half the time in some cases).
+
+Now we will evaluate LPEG compared to hand-written recursive parsers
+(in Lua) and to OMeta/JS, another PEG-based pattern matcher that
+matches structured data. For this evaluation we will use two
+benchmarks, the first is a simple evaluator of an arithmetic AST. 
+This grammar, in LPEG syntax, is
+\begin{verbatim}
+  exp <- { "add" <exp> <exp> } -> add
+         / { "sub" <exp> <exp> } -> sub
+         / { "mul" <exp> <exp> } -> mul
+         / { "div" <exp> <exp> } -> div
+         / { "num" <.> }
+\end{verbatim}
+with \texttt{<exp>} a
+non-terminal pattern, \texttt{<.>} a simple capture of pattern
+\texttt{.}, and \texttt{-> add} a function capture. A string like
+\texttt{¨add¨} is sugar for \texttt{\{'a''d''d'\}}. 
+
+The second benchmark parses a tree representing HTML-like data and
+extracts a list of all values of \texttt{src} attributes from
+\texttt{img} tags and \texttt{href} attributes of \texttt{a} tags. The
+grammar is
+\begin{verbatim}
+  html <- { <tag>* }
+  tag <- { "a" <href> <html> }
+         / { "img" <src> <html> }
+         / { . . <html> } 
+         / .
+  href <- { { !"href" . . }*
+	    { "href" <.> }
+            { !"href" . . }* }
+  src <- { { !"src" . . }*
+	   { "src" <.> }
+           { !"src" . . }* }
+\end{verbatim}
+
+We run both benchmarks both with captures and semantic actions and for
+matching only. Figure~\ref{fig:bench2} summarized the results. They
+show that list processing with LPEG is about as efficient as writing
+your own list-processing code.
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=0.6\textwidth]{microbench.pdf}
+\end{center}
+\caption{Benchmark results of list optimizations}
+\end{figure}
+
 \section{Related Work}
 \label{sec:related}
 
-The work most related to ours is OMeta~\cite{warth:ometa},
-an object-oriented language with pattern matching facilities based on PEGs. OMeta operates on
-lists of host-language objects. In~\cite{warth:thesis},
-the principal author of OMeta also presents an operational semantics for list matching. 
+OMeta is an object-oriented language that uses PEGs as a control 
+mechanism~\cite{warth:ometa}, and is embedded in other languages (with
+a JavaScript embedding being the most mature). OMeta also allows
+pattern matching on list-structured data, and OMeta's authors have
+an alternative operational semantics for list matching and semantic
+actions for PEGs~\cite{warth:thesis}.
 
-While in LPEG there are specific patterns which can produce captures, in OMeta there is no such
-distinction, and a successful matching of a pattern always produces a value (generally the value that
-would be produced by a single capture in LPEG). OMeta also supports the use of semantic predicates,
-a feature that could be implemented in LPEG through the use of match time captures, which are actually
-present in the implementation of LPEG but were not discussed here.
+While in our semantics a match only produces values if there are
+captures, in OMeta captures are implicit in the semantic rules (OMeta
+patterns always produce values). OMeta also executes semantic actions
+during pattern matching, so the programmer has to be careful with side
+effects on semantic actions. 
 
-An implementation of pattern matching in Scheme supporting lists is described in~\cite{wright:pattern}.
-Although the patterns described by Wright have a semantics similar to PEG patterns, there is not possible
-to build recursive patterns, as there is no concept similar to a PEG grammar. Scheme patterns also provide
-a simplified form of capture, where is possible to capture only a slice of the subject.
+OMeta has a kind of semantic action called a \emph{semantic predicate}, 
+which can interfere with the match. We did not include it in this
+paper due to space, but LPEG has a similar mechanism called a
+\emph{match-time capture}.
 
-The use of regular expression types to describe XML documents is presented
-by~\cite{hosoya:xml, hosoya:toplas}. Regular expression types correspond to tree automata, therefore
-by using this approach it is possible to recognize a regular tree language, while by using PEGs extended
-with lists we can also recognize non-regular tree languages, thus we have a strictly greater recognition power.
+Several programming languages, mostly in the ML family, include built-in pattern matching
+facilities to help define functions over structured
+data~\cite{milner:ml,hutton:haskell}. The patterns are limited, not
+providing any looping of repetition operators, or the ability to
+reference other patterns. Pattern variables capture data from the
+subject, and are bound to parameters of the functions.
 
-Some programming languages as ML~\cite{milner:ml} and Haskell~\cite{hutton:haskell} offer facilities for
-deconstruct structured data, but these facilities can only be used to match the top-level structure of a
-data, and do not involve the use of backtracking or recursive mechanisms. Haskell also offers parser combinators,
-which are a more powerful mechanism, which supports backtracking and allows the matching of complex
-structured data.
+Scheme has an implementation of pattern matching that works on lists
+that is also primarily intended for destructuring
+data~\cite{wright:pattern}. It has repetition, but
+patterns still can't reference other patterns, so it also is strictly less
+powerful than PEGs. Wright's patterns also can only capture data in
+the form of pattern variables.
+
+There are several languages for matching and validating XML-structured data that use
+patterns to describe document schemas, one of them being \emph{regular
+expression types}~\cite{hosoya:xml, hosoya:toplas}, an extension to
+algebraic types that includes repetition. The patterns that describe
+these types can reference other patterns (recursion is also
+supported), but they are restricted to recognizing regular tree
+languages, a restriction PEGs do not have.
+
+Finally, parser combinator... % PORRA
 
 \section{Conclusions}
 \label{sec:conclusions}
 
-Based on the work of ~\cite{warth:ometa}, we have presented an extension of PEGs which
-allows the matching of Lisp-style lists, instead of just characters. According, we have also extended
-the definition of our virtual parsing machine for PEGs, and we have proved the transformation
-from extended PEG patterns to programs in our parsing machine is correct.
+We presented an extension of Parsing Expression Grammars that allows
+matching of list-structured data, instead of just character
+strings, adding a \emph{list pattern} to standard PEG syntax. We
+provided an operational semantics for PEGs with this new
+pattern. 
 
-We also added new list-specific instructions to the parsing machine, in order to improve its
-performance when dealing with lists, and showed how the performance of the machine was affected
-by these instructions.
+Continuing a previous work, we also extended a parsing
+virtual machine for PEGs with new instructions for compiling list
+patterns, and proved the correctness of this machine and the compilation.
+A few non-essential instructions were also added to the machine to enable two
+list-specific optimizations.
 
-To perform semantic actions, we extended the semantics of the $\mathrm{match}_L$ relation, adding
-new patterns related to the capture of values. During the matching, our machine does not perform
-semantic actions, it only gathers enough information about the captures so that after the matching
-it can produce the corresponding values. The implementation of LPEG includes also other kinds of
-captures, such as a match time capture.
+We also added captures and semantic actions to PEGs, augmenting both
+the previous operational semantics and the parsing machine. Captures
+and semantic actions do not produce values, but promises of these
+values. A separate evaluation step executes the captures and semantic
+actions and produces the values. This makes side-effects in semantic
+actions safe in the presence of backtracking.
 
-We have shown the implementation of our parsing machine for PEGs and its list extension is really fast.
-When compared with OMeta, which also implements an extension of PEGs which supports the matching of lists,
-the performance of LPEG is almost an order-of-magnitude better.
+We benchmark list matching and our optimizations on LPEG, an implementation
+of our parsing machine for the Lua language. The optimizations are
+show to be effective, and list matching using LPEG to be about as
+efficient as a hand-written recursive parser, even when in the
+presence of captures and semantic actions. Our benchmarks also show an
+order-of-magnitude improvement over OMeta/JS, another PEG-based
+pattern matcher that operates over lists.
+
 \bibliographystyle{sbc}
 \bibliography{sblp} 
 
