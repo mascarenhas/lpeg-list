@@ -417,4 +417,13 @@ assert(select(6, p:match{{ "foo", "bar", "one", "two", "three", "baz", "boo", "b
 
 print("+")
 
+local p = m.L"a" * m.Cmt(
+                       m.L"b",
+                       function(s, i)
+                               return i
+                       end
+               )
+
+assert(p:match{"a", "b"} == 3)
+
 print("OK")
