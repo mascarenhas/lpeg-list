@@ -824,12 +824,7 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
       }
       case IOpen:
       {
-        if (backtop >= MAXBACK)
-          return luaL_error(L, "too many pending calls/choices");
-	back[backtop].p = NULL;
-	back[backtop++].s = dummy_l;
-	p++;
-	continue;
+	goto fail;
       }
       case ICall: {
         assert((p + 1)->i.code != IRet);  /* no tail call */
@@ -869,14 +864,6 @@ static int verify (lua_State *L, Instruction *op, const Instruction *p,
           p++;  /* just go on now */
           continue;
         }
-      }
-      case IClose:
-      {
-	assert(backtop > 0);
-	backtop--;
-	assert(back[backtop].s.kind == Slist);
-	p++;
-	continue;
       }
       case IAny:
       case IChar:
