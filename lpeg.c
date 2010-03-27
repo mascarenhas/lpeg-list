@@ -704,7 +704,7 @@ static Stream *match (lua_State *L,
 	    if (res + 1 < s->u.l.cur || res > (int)lua_objlen(L, -1))
 	      luaL_error(L, "invalid position returned by match-time capture");
 	    lua_pop(L, 1);
-	    s->u.l.cur = res;
+	    s->u.l.cur = res + 1;
 	  }
 	}
         captop -= ncap;  /* remove nested captures */
@@ -2184,7 +2184,7 @@ static int runtimecap (lua_State *L, Capture *close, Capture *ocap,
     }
     case Slist: {
       lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
-      lua_pushinteger(L, s->u.l.cur); 
+      lua_pushinteger(L, s->u.l.cur - 1); 
       break;
     }
     default: 
@@ -2507,7 +2507,7 @@ static int getcaptures (lua_State *L, Stream *r, int ptop) {
   }
   if (n == 0) {  /* no capture values? */
     switch(r->kind) {  /* return only end position */
-      case Slist: lua_pushinteger(L, r->u.l.cur);
+      case Slist: lua_pushinteger(L, r->u.l.cur); break;
       case Sstring: lua_pushinteger(L, r->u.s.s - r->u.s.o + 1); break;
       default: lua_pushnil(L);
     }
