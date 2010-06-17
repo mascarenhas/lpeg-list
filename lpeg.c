@@ -44,6 +44,8 @@
 /* index, on Lua stack, for table holding lists being traversed */
 #define plistidx(ptop)	((ptop) + 4)
 
+/* index, on Lua stack, for table holding runtime capture values */
+#define pdyncapidx(ptop) ((ptop) + 5)
 
 typedef unsigned char byte;
 
@@ -379,15 +381,17 @@ static Capture *doublecap (lua_State *L, Capture *cap, int captop, int ptop) {
 }
 
 
-static void adddyncaptures (Stream *s, Capture *base, int n, int fd) {
+static void adddyncaptures (lua_State *L, Stream *s, Capture *base, int n, int fd, int ptop) {
   int i;
   assert(base[0].kind == Cruntime && base[0].siz == 0);
-  base[0].idx = fd;  /* first returned capture */
+  lua_pushvalue(L, fd);
+  base[0].idx = luaL_ref(L, pdyncapidx(ptop));
   for (i = 1; i < n; i++) {  /* add extra captures */
     base[i].siz = 1;  /* mark it as closed */
     base[i].s = *s;
     base[i].kind = Cruntime;
-    base[i].idx = fd + i;  /* stack index */
+    lua_pushvalue(L, fd + i);
+    base[i].idx = luaL_ref(L, pdyncapidx(ptop));
   }
   base[n].kind = Cclose;  /* add closing entry */
   base[n].siz = 1;
@@ -465,7 +469,7 @@ static Stream *match (lua_State *L,
 	    }
 	    c = lua_tolstring(L, -1, &siz);
 	    if(siz == 1 && (byte)*c == p->i.aux) { p++; s->u.l.cur++; }
-	    else condfailed(p);
+	    else { lua_pop(L, 2); condfailed(p); break; }
 	    lua_pop(L, 2);
 	    break;
 	  }
@@ -493,7 +497,7 @@ static Stream *match (lua_State *L,
 	    c = lua_tolstring(L, -1, &siz);
 	    if(siz == 1 && testchar((p+1)->buff, (byte)*c))
 	      { p += CHARSETINSTSIZE; s->u.l.cur++; }
-	    else condfailed(p);
+	    else { lua_pop(L, 2); condfailed(p); break; }
 	    lua_pop(L, 2);
 	    break;
 	  }
@@ -545,6 +549,7 @@ static Stream *match (lua_State *L,
 	    lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
 	    assert(lua_istable(L, -1));
 	    lua_rawgeti(L, -1, s->u.l.cur);
+	    lua_remove(L, -2);
 	    switch(lua_type(L, -1)) {
 	      case LUA_TTABLE: {
 		if (stack >= stacklimit)
@@ -579,7 +584,6 @@ static Stream *match (lua_State *L,
 	      }
 	      default: lua_pop(L, 1); condfailed(p);
 	    }
-	    lua_pop(L, 1);
 	    break;
 	  }
 	  default: condfailed(p);
@@ -594,7 +598,9 @@ static Stream *match (lua_State *L,
 		   (stack - 1)->p == NULL);
 	    lua_rawgeti(L, -1, s->u.l.cur);
 	    if(!lua_isnil(L, -1)) {
+	      lua_pop(L, 2);
 	      condfailed(p);
+	      break;
 	    } else {
 	      --stack;
 	      *s = stack->s;
@@ -714,7 +720,8 @@ static Stream *match (lua_State *L,
             capture = doublecap(L, capture, captop, ptop);
             capsize = 2 * captop;
           }
-          adddyncaptures(s, capture + captop - n - 1, n, fr);
+          adddyncaptures(L, s, capture + captop - n - 1, n, fr, ptop);
+	  lua_pop(L, n);
         }
         p++;
         continue;
@@ -2171,7 +2178,7 @@ static int runtimecap (lua_State *L, Capture *close, Capture *ocap,
     }
     case Slist: {
       lua_rawgeti(L, plistidx(ptop), s->u.l.ref);
-      lua_pushinteger(L, s->u.l.cur - 1); 
+      lua_pushinteger(L, s->u.l.cur - 1);
       break;
     }
     default: 
@@ -2430,7 +2437,8 @@ static int pushcapture (CapState *cs) {
       int n = 0;
       while (!isclosecap(cs->cap++)) {
         luaL_checkstack(cs->L, 4, "too many captures");
-        lua_pushvalue(cs->L, (cs->cap - 1)->idx);
+        lua_rawgeti(cs->L, pdyncapidx(cs->ptop), (cs->cap - 1)->idx);
+	luaL_unref(cs->L, pdyncapidx(cs->ptop), (cs->cap - 1)->idx);
         n++;
       }
       return n;
@@ -2584,6 +2592,7 @@ static int matchl (lua_State *L) {
   lua_pushlightuserdata(L, capture);  /* caplistidx */
   lua_getfenv(L, 1);  /* penvidx */
   lua_createtable(L, 0, 0); /* lists */
+  lua_createtable(L, 0, 0); /* runtime capture values */
   switch(lua_type(L, SUBJIDX)) {
     case LUA_TSTRING: {
       s.kind = Sstring;
