@@ -2595,10 +2595,11 @@ static int matchl (lua_State *L) {
   lua_createtable(L, 0, 0); /* runtime capture values */
   switch(lua_type(L, SUBJIDX)) {
     case LUA_TSTRING: {
+      lua_Integer ii; size_t i;
       s.kind = Sstring;
       s.u.s.o = lua_tolstring(L, SUBJIDX, &l);
-      lua_Integer ii = luaL_optinteger(L, 3, 1);
-      size_t i = (ii > 0) ?
+      ii = luaL_optinteger(L, 3, 1);
+      i = (ii > 0) ?
 	(((size_t)ii <= l) ? (size_t)ii - 1 : l) :
 	(((size_t)-ii <= l) ? l - ((size_t)-ii) : 0);
       s.u.s.s = s.u.s.o + i;
@@ -2606,10 +2607,11 @@ static int matchl (lua_State *L) {
       break;
     }
     case LUA_TTABLE: {
+      lua_Integer ii; size_t i;
       s.kind = Slist;
       l = lua_objlen(L, SUBJIDX);
-      lua_Integer ii = luaL_optinteger(L, 3, 1);
-      int i = (ii > 0) ?
+      ii = luaL_optinteger(L, 3, 1);
+      i = (ii > 0) ?
 	(((size_t)ii <= l) ? ii : (int)l) :
 	(((size_t)-ii <= l) ? (int)l + ii + 1 : 1);
       lua_pushvalue(L, SUBJIDX);
