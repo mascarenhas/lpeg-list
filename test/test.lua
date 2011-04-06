@@ -1110,6 +1110,15 @@ rev = re.compile[[ R <- (!.) -> '' / ({.} <R>) -> '%2%1']]
 
 assert(rev:match"0123456789" == "9876543210")
 
+local p = m.L"a" * m.Cmt(
+                       m.L"b",
+                       function(s, i)
+                               return i
+                       end
+               )
+
+assert(p:match{"a", "b"} == 3)
+
 print"OK"
 
 
