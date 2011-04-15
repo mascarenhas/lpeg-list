@@ -18,7 +18,7 @@ end
 
 local assert = assert
 
-m.print(p)
+--m.print(p)
 
 return function ()
 	 for i = 1, 20 do 

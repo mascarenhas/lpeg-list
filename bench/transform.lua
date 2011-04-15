@@ -26,7 +26,7 @@ local p = ps[1] + ps[2] + ps[3] + ps[4] + ps[5]
 
 local assert = assert
 
-m.print(p)
+--m.print(p)
 
 local subject = {}
 

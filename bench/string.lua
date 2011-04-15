@@ -16,7 +16,7 @@ for i = 2, 20 do
   p = p * m.L(subjects[i])
 end
 
-m.print(p)
+--m.print(p)
 
 local assert = assert
 

@@ -15,7 +15,7 @@ local p = m.L(m.L(s[1]) * m.L(s[2]) * m.L(s[3]) * m.L(s[4]) * m.L(s[5]))^0
 
 local assert = assert
 
-m.print(p)
+--m.print(p)
 
 local subject = {}
 
