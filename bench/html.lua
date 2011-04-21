@@ -47,7 +47,7 @@ local S = m.S(" \n\t")^0
 local tinyhtmlp = re.compile([[
   html <- (<tag> / <text>)* -> {}
   name <- <[0-9a-zA-Z_-]+>
-  tag <- (`< <name>:n %s (<attribute>*->{}):attrs `> 
+  tag <- (`< <name>:n %s (<attribute>*->{}):attrs `>
     <html>:c %s '</' %s =n %s '>') -> {n, attrs, c}
   text <- <(!'<' .)+>
   attribute <- (%s <name>:k `= <quotedString>:v %s) -> {k, v}
@@ -59,8 +59,8 @@ local tree = tinyhtmlp:match([[
  <title>Yes</title>
  <body>
  <h1>Man, HTML is
- <i>great</i>.</h1><p>How could you even <b>think</b> 
- otherwise?</p><img src='HIPPO.JPG' width='20'></img><a 
+ <i>great</i>.</h1><p>How could you even <b>think</b>
+ otherwise?</p><img src='HIPPO.JPG' width='20'></img><a
  href='http://twistedmatrix.com'>A Good Website</a>
  </body>
  </html>
@@ -69,23 +69,23 @@ local tree = tinyhtmlp:match([[
 assert(tree)
 
 local tinyhtmld = re.compile([[
-  html <- { <tag>* } -> {} -> concat   
+  html <- { <tag>* } -> {} -> concat
   tag <- {  <.>, . -> formatattrs, <html> } -> ptag / <.>
-]], { concat = table.concat, 
+]], { concat = table.concat,
       ptag = function(tag, attrs, body)
-	       return  string.format("<%s %s>%s</%s>", tag, 
-				     attrs, body, tag)
-	     end,
-      formatattrs = function(attrs) 
-		       local t = {}
-		       for i = 1, #attrs do
-			  t[i] = string.format("%s = '%s'", attrs[i][1], attrs[i][2])
-		       end
-		       return table.concat(t, " ")
-		    end})
+               return  string.format("<%s %s>%s</%s>", tag,
+                                     attrs, body, tag)
+             end,
+      formatattrs = function(attrs)
+                       local t = {}
+                       for i = 1, #attrs do
+                          t[i] = string.format("%s = '%s'", attrs[i][1], attrs[i][2])
+                       end
+                       return table.concat(t, " ")
+                    end})
 
 local dump = [[<html ><title >Yes</title><body ><h1 >Man, HTML is
- <i >great</i>.</h1><p >How could you even <b >think</b> 
+ <i >great</i>.</h1><p >How could you even <b >think</b>
  otherwise?</p><img src = 'HIPPO.JPG' width = '20'></img><a href = 'http://twistedmatrix.com'>A Good Website</a>
  </body>
  </html>
@@ -98,14 +98,14 @@ local linkextract = re.compile([[
   contents <- { <tag>* }
   tag <- { "a", <href>, <contents> }
          / { "img", <src>, <contents> }
-         / { ., ., <contents> } 
+         / { ., ., <contents> }
          / .
   href <- { { (!"href" .), . }*,
-	    { "href", <.> },
-            { (!"href" .), . }* }
+            { "href", <.> },
+            .* }
   src <- { { (!"src" .), . }*,
-	   { "src", (<.>) },
-           { (!"src" .), . }* }
+           { "src", (<.>) },
+           .* }
 ]])
 
 local function test()
@@ -118,39 +118,25 @@ local function linkextract2(tree)
    local links = {}
    for _, tag in ipairs(tree) do
       if #tag == 3 and tag[1] == "a" then
-	 local href
-	 for _, attr in ipairs(tag[2]) do
-	    if #attr == 2 and attr[1] == "href" then
-	       if href then
-		  href = nil
-		  break
-	       end
-	       href = attr[2]
-	    elseif #attr ~= 2 then
-	       href = nil
-	       break
-	    end
-	 end
-	 links[#links+1] = href
-	 for _, link in ipairs(linkextract2(tag[3])) do links[#links+1] = link end
+         local href
+         for _, attr in ipairs(tag[2]) do
+            if #attr == 2 and attr[1] == "href" then
+              links[#links+1] = attr[2]
+              break
+            end
+         end
+         for _, link in ipairs(linkextract2(tag[3])) do links[#links+1] = link end
       elseif #tag == 3 and tag[1] == "img" then
-	 local src
-	 for _, attr in ipairs(tag[2]) do
-	    if #attr == 2 and attr[1] == "src" then
-	       if src then
-		  src = nil
-		  break
-	       end
-	       src = attr[2]
-	    elseif #attr ~= 2 then
-	       src = nil
-	       break
-	    end
-	 end
-	 links[#links+1] = src
-	 for _, link in ipairs(linkextract2(tag[3])) do links[#links+1] = link end
+         local src
+         for _, attr in ipairs(tag[2]) do
+            if #attr == 2 and attr[1] == "src" then
+              links[#links+1] = attr[2]
+              break
+            end
+         end
+         for _, link in ipairs(linkextract2(tag[3])) do links[#links+1] = link end
       elseif #tag == 3 and tag[3] then
-	 for _, link in ipairs(linkextract2(tag[3])) do links[#links+1] = link end
+         for _, link in ipairs(linkextract2(tag[3])) do links[#links+1] = link end
       end
    end
    return links
@@ -166,50 +152,51 @@ test()
 test2()
 
 local linkextract_matchonly = re.compile([[
-  html <- <contents> 
+  html <- <contents>
   contents <- { <tag>* }
   tag <- { "a", <href>, <contents> }
          / { "img", <src>, <contents> }
-         / { ., ., <contents> } 
+         / { ., ., <contents> }
          / .
   href <- { { (!"href" .), . }*,
-	    { "href", . },
-            { (!"href" .), . }* }
+            { "href", . },
+            .* }
   src <- { { (!"src" .), . }*,
-	   { "src", (.) },
-           { (!"src" .), . }* }
+           { "src", (.) },
+           .* }
 ]])
 
 local function linkextract2_matchonly(tree)
    for _, tag in ipairs(tree) do
       if #tag == 3 and tag[1] == "a" then
-	      local href
-	      for _, attr in ipairs(tag[2]) do
-	        if #attr == 2 and attr[1] == "href" then
-	          if href then
-		          break
-	          end
-	          href = true
-	        elseif #attr ~= 2 then
-	          break
-	        end
-	      end
-	      linkextract2_matchonly(tag[3])
+              local href
+              for _, attr in ipairs(tag[2]) do
+                if #attr == 2 and attr[1] == "href" then
+                  href = truetrue
+                  if href then
+                          break
+                  end
+                  href = true
+                elseif #attr ~= 2 then
+                  break
+                end
+              end
+              linkextract2_matchonly(tag[3])
       elseif #tag == 3 and tag[1] == "img" then
-	      local src
-	      for _, attr in ipairs(tag[2]) do
-	        if #attr == 2 and attr[1] == "src" then
-	          if src then
-		          break
-	          end
-	          src = true
-	        elseif #attr ~= 2 then
-	          break
-	        end
-	      end
-	      linkextract2_matchonly(tag[3])
+              local src
+              for _, attr in ipairs(tag[2]) do
+                if #attr == 2 and attr[1] == "src" then
+                  if src then
+                          break
+                  end
+                  src = true
+                elseif #attr ~= 2 then
+                  break
+                end
+              end
+              linkextract2_matchonly(tag[3])
       elseif #tag == 3 and tag[3] then
-	      linkextract2_matchonly(tag[3])
+              linkextract2_matchonly(tag[3])
       end
    end
    return true

@@ -4,6 +4,8 @@
 
 local m = require"listlpeg"
 
+printpatt = m.print
+
 any = m.P(1)
 space = m.S" \t\n"^0
 
@@ -475,7 +477,7 @@ assert(m.match(m.Cmt(m.Cg(m.Carg(3), "a") *
                                       end) *
                      m.Carg(2), function (s,i,a,b,c)
                                   assert(s == "a" and i == 1 and c == nil);
-				  return i, 2*a + 3*b
+                                  return i, 2*a + 3*b
                                 end) * "a",
                "a", 1, false, 100, 1000) == 2*1001 + 3*100)
 
@@ -634,7 +636,7 @@ s = string.rep('a', l) .. string.rep('b', l) .. string.rep('c', l)
 p = (m.C(m.P'a'^1) * m.C(m.P'b'^1) * m.C(m.P'c'^1)) / '%3%2%1'
 
 assert(p:match(s) == string.rep('c', l) ..
-                     string.rep('b', l) .. 
+                     string.rep('b', l) ..
                      string.rep('a', l))
 
 print"+"
@@ -649,7 +651,7 @@ p = m.Cf(m.Ct(true) * m.Cg(m.C(m.R"az"^1) * "=" * m.C(m.R"az"^1) * ";")^0,
          rawset)
 t = p:match("a=b;c=du;xux=yuy;")
 checkeq(t, {a="b", c="du", xux="yuy"})
- 
+
 
 -- tests for loop checker
 
@@ -786,8 +788,8 @@ assert(not pcall(m.match, m.Cmt(1, id)^0, string.rep('a', 50000)))
 local function id(s, i, x)
   if x == 'a' then return i + 1, 1, 3, 7
   else return nil, 2, 4, 6, 8
-  end   
-end     
+  end
+end
 
 p = ((m.P(id) + m.Cmt(2, id)  + m.Cmt(1, id)))^0
 assert(table.concat{p:match('abababab')} == string.rep('137', 4))
@@ -1019,11 +1021,11 @@ t= p:match[[
   1.1
   1.2
     1.2.1
-    
+
 2
   2.1
 ]]
-checkeq(t, {"1", {"1.1", "1.2", {"1.2.1", "", ident = "    "}, ident = "  "},
+checkeq(t, {"1", {"1.1", "1.2", {"1.2.1", ident = "    "}, ident = "  "}, "",
             "2", {"2.1", ident = "  "}, ident = ""})
 
 
